@@ -1,0 +1,106 @@
+{
+  "cards": [
+    { "id": "LumberYard", "name": "伐木场", "age": 1, "type": "RAW_MATERIAL", "cost": { "coins": 0 }, "effects": [{ "type": "PRODUCTION", "resources": { "WOOD": 1 } }] },
+    { "id": "LoggingCamp", "name": "伐木营", "age": 1, "type": "RAW_MATERIAL", "cost": { "coins": 1 }, "effects": [{ "type": "PRODUCTION", "resources": { "WOOD": 1 } }] },
+    { "id": "ClayPool", "name": "粘土坑", "age": 1, "type": "RAW_MATERIAL", "cost": { "coins": 0 }, "effects": [{ "type": "PRODUCTION", "resources": { "CLAY": 1 } }] },
+    { "id": "ClayPit", "name": "粘土场", "age": 1, "type": "RAW_MATERIAL", "cost": { "coins": 1 }, "effects": [{ "type": "PRODUCTION", "resources": { "CLAY": 1 } }] },
+    { "id": "Quarry", "name": "石料加工厂", "age": 1, "type": "RAW_MATERIAL", "cost": { "coins": 0 }, "effects": [{ "type": "PRODUCTION", "resources": { "STONE": 1 } }] },
+    { "id": "StonePit", "name": "采石场", "age": 1, "type": "RAW_MATERIAL", "cost": { "coins": 1 }, "effects": [{ "type": "PRODUCTION", "resources": { "STONE": 1 } }] },
+    { "id": "Glassworks", "name": "玻璃作坊", "age": 1, "type": "MANUFACTURED", "cost": { "coins": 1 }, "effects": [{ "type": "PRODUCTION", "resources": { "GLASS": 1 } }] },
+    { "id": "Press", "name": "造纸坊", "age": 1, "type": "MANUFACTURED", "cost": { "coins": 1 }, "effects": [{ "type": "PRODUCTION", "resources": { "PAPER": 1 } }] },
+    
+    { "id": "GuardTower", "name": "守望塔", "age": 1, "type": "MILITARY", "cost": { "coins": 0 }, "effects": [{ "type": "MILITARY", "shields": 1 }] },
+    { "id": "Stable", "name": "马厩", "age": 1, "type": "MILITARY", "cost": { "resources": { "WOOD": 1 } }, "provides_chain": "HORSE", "effects": [{ "type": "MILITARY", "shields": 1 }] },
+    { "id": "Garrison", "name": "卫戍部队", "age": 1, "type": "MILITARY", "cost": { "resources": { "CLAY": 1 } }, "provides_chain": "SWORD", "effects": [{ "type": "MILITARY", "shields": 1 }] },
+    { "id": "Palisade", "name": "营壁", "age": 1, "type": "MILITARY", "cost": { "coins": 2 }, "provides_chain": "TOWER", "effects": [{ "type": "MILITARY", "shields": 1 }] },
+    
+    { "id": "Scriptorium", "name": "抄写室", "age": 1, "type": "SCIENTIFIC", "cost": { "coins": 2 }, "provides_chain": "BOOK", "effects": [{ "type": "SCIENCE", "symbol": "QUILL" }, { "type": "VICTORY_POINTS", "amount": 1 }] },
+    { "id": "Pharmacist", "name": "配药房", "age": 1, "type": "SCIENTIFIC", "cost": { "coins": 2 }, "provides_chain": "GEAR", "effects": [{ "type": "SCIENCE", "symbol": "MORTAR" }, { "type": "VICTORY_POINTS", "amount": 1 }] },
+    { "id": "Workshop", "name": "工作间", "age": 1, "type": "SCIENTIFIC", "cost": { "resources": { "PAPER": 1 } }, "effects": [{ "type": "SCIENCE", "symbol": "COMPASS" }, { "type": "VICTORY_POINTS", "amount": 1 }] },
+    { "id": "Apothecary", "name": "药剂室", "age": 1, "type": "SCIENTIFIC", "cost": { "resources": { "GLASS": 1 } }, "effects": [{ "type": "SCIENCE", "symbol": "WHEEL" }, { "type": "VICTORY_POINTS", "amount": 1 }] },
+
+    { "id": "StoneReserve", "name": "石料库", "age": 1, "type": "COMMERCIAL", "cost": { "coins": 3 }, "effects": [{ "type": "TRADE_DISCOUNT", "resource": "STONE" }] },
+    { "id": "ClayReserve", "name": "粘土库", "age": 1, "type": "COMMERCIAL", "cost": { "coins": 3 }, "effects": [{ "type": "TRADE_DISCOUNT", "resource": "CLAY" }] },
+    { "id": "WoodReserve", "name": "木头库", "age": 1, "type": "COMMERCIAL", "cost": { "coins": 3 }, "effects": [{ "type": "TRADE_DISCOUNT", "resource": "WOOD" }] },
+    { "id": "Tavern", "name": "客栈", "age": 1, "type": "COMMERCIAL", "cost": { "coins": 0 }, "provides_chain": "JUG", "effects": [{ "type": "COINS", "amount": 4 }] },
+
+    { "id": "Theater", "name": "剧场", "age": 1, "type": "CIVILIAN", "cost": { "coins": 0 }, "provides_chain": "MASK", "effects": [{ "type": "VICTORY_POINTS", "amount": 3 }] },
+    { "id": "Altar", "name": "祭坛", "age": 1, "type": "CIVILIAN", "cost": { "coins": 0 }, "provides_chain": "MOON", "effects": [{ "type": "VICTORY_POINTS", "amount": 3 }] },
+    { "id": "Baths", "name": "浴场", "age": 1, "type": "CIVILIAN", "cost": { "resources": { "STONE": 1 } }, "provides_chain": "DROP", "effects": [{ "type": "VICTORY_POINTS", "amount": 3 }] },
+
+    { "id": "Sawmill", "name": "锯木厂", "age": 2, "type": "RAW_MATERIAL", "cost": { "coins": 2 }, "effects": [{ "type": "PRODUCTION", "resources": { "WOOD": 2 } }] },
+    { "id": "BrickYard", "name": "砖窑", "age": 2, "type": "RAW_MATERIAL", "cost": { "coins": 2 }, "effects": [{ "type": "PRODUCTION", "resources": { "CLAY": 2 } }] },
+    { "id": "ShelfQuarry", "name": "大采石场", "age": 2, "type": "RAW_MATERIAL", "cost": { "coins": 2 }, "effects": [{ "type": "PRODUCTION", "resources": { "STONE": 2 } }] },
+    { "id": "GlassBlower", "name": "吹玻璃工艺", "age": 2, "type": "MANUFACTURED", "cost": { "coins": 0 }, "effects": [{ "type": "PRODUCTION", "resources": { "GLASS": 1 } }] },
+    { "id": "DryingRoom", "name": "干燥间", "age": 2, "type": "MANUFACTURED", "cost": { "coins": 0 }, "effects": [{ "type": "PRODUCTION", "resources": { "PAPER": 1 } }] },
+
+    { "id": "Walls", "name": "城墙", "age": 2, "type": "MILITARY", "cost": { "resources": { "STONE": 2 } }, "effects": [{ "type": "MILITARY", "shields": 2 }] },
+    { "id": "HorseBreeders", "name": "马匹有种", "age": 2, "type": "MILITARY", "cost": { "resources": { "CLAY": 1, "WOOD": 1 } }, "requires_chain": "HORSE", "effects": [{ "type": "MILITARY", "shields": 1 }] },
+    { "id": "Barracks", "name": "兵营", "age": 2, "type": "MILITARY", "cost": { "coins": 3 }, "requires_chain": "SWORD", "effects": [{ "type": "MILITARY", "shields": 1 }] },
+    { "id": "ArcheryRange", "name": "弓箭营", "age": 2, "type": "MILITARY", "cost": { "resources": { "STONE": 1, "WOOD": 1, "PAPER": 1 } }, "provides_chain": "TARGET", "effects": [{ "type": "MILITARY", "shields": 2 }] },
+    { "id": "ParadeGround", "name": "练兵场", "age": 2, "type": "MILITARY", "cost": { "resources": { "CLAY": 2, "GLASS": 1 } }, "provides_chain": "HELMET", "effects": [{ "type": "MILITARY", "shields": 2 }] },
+
+    { "id": "Library", "name": "图书馆", "age": 2, "type": "SCIENTIFIC", "cost": { "resources": { "STONE": 1, "WOOD": 1, "GLASS": 1 } }, "requires_chain": "BOOK", "effects": [{ "type": "SCIENCE", "symbol": "QUILL" }, { "type": "VICTORY_POINTS", "amount": 2 }] },
+    { "id": "Dispensary", "name": "医疗站", "age": 2, "type": "SCIENTIFIC", "cost": { "resources": { "CLAY": 2, "STONE": 1 } }, "requires_chain": "GEAR", "effects": [{ "type": "SCIENCE", "symbol": "MORTAR" }, { "type": "VICTORY_POINTS", "amount": 2 }] },
+    { "id": "School", "name": "学校", "age": 2, "type": "SCIENTIFIC", "cost": { "resources": { "WOOD": 1, "PAPER": 2 } }, "provides_chain": "HARP", "effects": [{ "type": "SCIENCE", "symbol": "WHEEL" }, { "type": "VICTORY_POINTS", "amount": 1 }] },
+    { "id": "Laboratory", "name": "实验室", "age": 2, "type": "SCIENTIFIC", "cost": { "resources": { "WOOD": 1, "GLASS": 2 } }, "provides_chain": "LAMP", "effects": [{ "type": "SCIENCE", "symbol": "COMPASS" }, { "type": "VICTORY_POINTS", "amount": 1 }] },
+
+    { "id": "Forum", "name": "集会广场", "age": 2, "type": "COMMERCIAL", "cost": { "coins": 3, "resources": { "CLAY": 1 } }, "effects": [{ "type": "PRODUCTION_CHOICE", "resources": ["GLASS", "PAPER"] }] },
+    { "id": "Caravansery", "name": "商队旅馆", "age": 2, "type": "COMMERCIAL", "cost": { "coins": 2, "resources": { "GLASS": 1, "PAPER": 1 } }, "effects": [{ "type": "PRODUCTION_CHOICE", "resources": ["WOOD", "CLAY", "STONE"] }] },
+    { "id": "CustomsHouse", "name": "海关", "age": 2, "type": "COMMERCIAL", "cost": { "coins": 4 }, "effects": [{ "type": "TRADE_DISCOUNT", "resource": "GLASS" }, { "type": "TRADE_DISCOUNT", "resource": "PAPER" }] },
+    { "id": "Brewery", "name": "酿酒厂", "age": 2, "type": "COMMERCIAL", "cost": { "coins": 0 }, "provides_chain": "BARREL", "effects": [{ "type": "COINS", "amount": 6 }] },
+
+    { "id": "Tribunal", "name": "审判席", "age": 2, "type": "CIVILIAN", "cost": { "resources": { "WOOD": 2, "GLASS": 1 } }, "effects": [{ "type": "VICTORY_POINTS", "amount": 5 }] },
+    { "id": "Statue", "name": "雕像", "age": 2, "type": "CIVILIAN", "cost": { "resources": { "CLAY": 2 } }, "requires_chain": "MASK", "provides_chain": "PILLAR", "effects": [{ "type": "VICTORY_POINTS", "amount": 4 }] },
+    { "id": "Temple", "name": "神庙", "age": 2, "type": "CIVILIAN", "cost": { "resources": { "WOOD": 1, "PAPER": 1 } }, "requires_chain": "MOON", "provides_chain": "SUN", "effects": [{ "type": "VICTORY_POINTS", "amount": 4 }] },
+    { "id": "Aqueduct", "name": "引水渠", "age": 2, "type": "CIVILIAN", "cost": { "resources": { "STONE": 3 } }, "requires_chain": "DROP", "effects": [{ "type": "VICTORY_POINTS", "amount": 5 }] },
+    { "id": "Rostrum", "name": "讲坛", "age": 2, "type": "CIVILIAN", "cost": { "resources": { "STONE": 1, "WOOD": 1 } }, "provides_chain": "CAPITOL", "effects": [{ "type": "VICTORY_POINTS", "amount": 4 }] },
+
+    { "id": "Arsenal", "name": "军械库", "age": 3, "type": "MILITARY", "cost": { "resources": { "CLAY": 3, "WOOD": 2 } }, "effects": [{ "type": "MILITARY", "shields": 3 }] },
+    { "id": "Courthouse", "name": "法院", "age": 3, "type": "MILITARY", "cost": { "coins": 8 }, "effects": [{ "type": "MILITARY", "shields": 3 }] },
+    { "id": "Fortifications", "name": "要塞", "age": 3, "type": "MILITARY", "cost": { "resources": { "STONE": 2, "CLAY": 1, "PAPER": 1 } }, "requires_chain": "TOWER", "effects": [{ "type": "MILITARY", "shields": 2 }] },
+    { "id": "SiegeWorkshop", "name": "攻城器工厂", "age": 3, "type": "MILITARY", "cost": { "resources": { "WOOD": 3, "GLASS": 1 } }, "requires_chain": "TARGET", "effects": [{ "type": "MILITARY", "shields": 2 }] },
+    { "id": "Circus", "name": "角斗场", "age": 3, "type": "MILITARY", "cost": { "resources": { "CLAY": 2, "STONE": 2 } }, "requires_chain": "HELMET", "effects": [{ "type": "MILITARY", "shields": 2 }] },
+
+    { "id": "Academy", "name": "学院", "age": 3, "type": "SCIENTIFIC", "cost": { "resources": { "STONE": 1, "WOOD": 1, "GLASS": 2 } }, "effects": [{ "type": "SCIENCE", "symbol": "TABLET" }, { "type": "VICTORY_POINTS", "amount": 3 }] },
+    { "id": "Study", "name": "讲习所", "age": 3, "type": "SCIENTIFIC", "cost": { "resources": { "WOOD": 2, "PAPER": 1, "GLASS": 1 } }, "effects": [{ "type": "SCIENCE", "symbol": "TABLET" }, { "type": "VICTORY_POINTS", "amount": 3 }] },
+    { "id": "University", "name": "大学", "age": 3, "type": "SCIENTIFIC", "cost": { "resources": { "CLAY": 1, "GLASS": 1, "PAPER": 1 } }, "requires_chain": "HARP", "effects": [{ "type": "SCIENCE", "symbol": "GLOBE" }, { "type": "VICTORY_POINTS", "amount": 2 }] },
+    { "id": "Observatory", "name": "天文台", "age": 3, "type": "SCIENTIFIC", "cost": { "resources": { "STONE": 1, "PAPER": 2 } }, "requires_chain": "LAMP", "effects": [{ "type": "SCIENCE", "symbol": "GLOBE" }, { "type": "VICTORY_POINTS", "amount": 2 }] },
+
+    { "id": "ChamberOfCommerce", "name": "商会", "age": 3, "type": "COMMERCIAL", "cost": { "resources": { "PAPER": 2 } }, "effects": [{ "type": "VICTORY_POINTS", "amount": 3 }, { "type": "COINS_PER_TYPE", "target_type": "MANUFACTURED", "amount": 3 }] },
+    { "id": "Port", "name": "港口", "age": 3, "type": "COMMERCIAL", "cost": { "resources": { "WOOD": 1, "GLASS": 1, "PAPER": 1 } }, "effects": [{ "type": "VICTORY_POINTS", "amount": 3 }, { "type": "COINS_PER_TYPE", "target_type": "RAW_MATERIAL", "amount": 2 }] },
+    { "id": "Armory", "name": "兵工厂", "age": 3, "type": "COMMERCIAL", "cost": { "resources": { "STONE": 2, "GLASS": 1 } }, "effects": [{ "type": "VICTORY_POINTS", "amount": 3 }, { "type": "COINS_PER_TYPE", "target_type": "MILITARY", "amount": 1 }] },
+    { "id": "Lighthouse", "name": "灯塔", "age": 3, "type": "COMMERCIAL", "cost": { "resources": { "CLAY": 2, "GLASS": 1 } }, "requires_chain": "JUG", "effects": [{ "type": "VICTORY_POINTS", "amount": 3 }, { "type": "COINS_PER_TYPE", "target_type": "COMMERCIAL", "amount": 1 }] },
+    { "id": "Arena", "name": "竞技场", "age": 3, "type": "COMMERCIAL", "cost": { "resources": { "CLAY": 1, "STONE": 1, "WOOD": 1 } }, "requires_chain": "BARREL", "effects": [{ "type": "VICTORY_POINTS", "amount": 3 }, { "type": "COINS_PER_TYPE", "target_type": "WONDER", "amount": 2 }] },
+
+    { "id": "Palace", "name": "宫殿", "age": 3, "type": "CIVILIAN", "cost": { "resources": { "CLAY": 1, "STONE": 1, "WOOD": 1, "GLASS": 2 } }, "effects": [{ "type": "VICTORY_POINTS", "amount": 7 }] },
+    { "id": "TownHall", "name": "市政中心", "age": 3, "type": "CIVILIAN", "cost": { "resources": { "STONE": 3, "WOOD": 2 } }, "effects": [{ "type": "VICTORY_POINTS", "amount": 7 }] },
+    { "id": "Obelisk", "name": "方尖碑", "age": 3, "type": "CIVILIAN", "cost": { "resources": { "STONE": 2, "GLASS": 1 } }, "effects": [{ "type": "VICTORY_POINTS", "amount": 5 }] },
+    { "id": "Gardens", "name": "城市花园", "age": 3, "type": "CIVILIAN", "cost": { "resources": { "CLAY": 2, "WOOD": 2 } }, "requires_chain": "PILLAR", "effects": [{ "type": "VICTORY_POINTS", "amount": 6 }] },
+    { "id": "Pantheon", "name": "万神殿", "age": 3, "type": "CIVILIAN", "cost": { "resources": { "CLAY": 1, "WOOD": 1, "PAPER": 2 } }, "requires_chain": "SUN", "effects": [{ "type": "VICTORY_POINTS", "amount": 6 }] },
+    { "id": "Senate", "name": "城市议会", "age": 3, "type": "CIVILIAN", "cost": { "resources": { "CLAY": 2, "STONE": 1, "PAPER": 1 } }, "requires_chain": "CAPITOL", "effects": [{ "type": "VICTORY_POINTS", "amount": 5 }] },
+
+    { "id": "GuildTraders", "name": "贸易商行会", "age": 3, "type": "GUILD", "cost": { "resources": { "CLAY": 1, "WOOD": 1, "GLASS": 1, "PAPER": 1 } }, "effects": [{ "type": "GUILD", "criteria": "YELLOW_CARDS" }] },
+    { "id": "GuildShipowners", "name": "船主行会", "age": 3, "type": "GUILD", "cost": { "resources": { "CLAY": 1, "STONE": 1, "GLASS": 1, "PAPER": 1 } }, "effects": [{ "type": "GUILD", "criteria": "BROWN_GREY_CARDS" }] },
+    { "id": "GuildBuilders", "name": "建筑师行会", "age": 3, "type": "GUILD", "cost": { "resources": { "CLAY": 1, "WOOD": 1, "GLASS": 1, "STONE": 2 } }, "effects": [{ "type": "GUILD", "criteria": "WONDERS" }] },
+    { "id": "GuildMagistrates", "name": "市政官协会", "age": 3, "type": "GUILD", "cost": { "resources": { "CLAY": 1, "WOOD": 2, "PAPER": 1 } }, "effects": [{ "type": "GUILD", "criteria": "BLUE_CARDS" }] },
+    { "id": "GuildScientists", "name": "科学家协会", "age": 3, "type": "GUILD", "cost": { "resources": { "CLAY": 2, "WOOD": 2 } }, "effects": [{ "type": "GUILD", "criteria": "GREEN_CARDS" }] },
+    { "id": "GuildMoneylenders", "name": "放债者行会", "age": 3, "type": "GUILD", "cost": { "resources": { "STONE": 2, "WOOD": 2 } }, "effects": [{ "type": "GUILD", "criteria": "COINS" }] },
+    { "id": "GuildTacticians", "name": "战术家协会", "age": 3, "type": "GUILD", "cost": { "resources": { "CLAY": 1, "STONE": 2, "PAPER": 1 } }, "effects": [{ "type": "GUILD", "criteria": "RED_CARDS" }] }
+  ],
+  
+  "wonders": [
+    { "id": "ViaAppia", "name": "亚壁古道", "cost": { "resources": { "PAPER": 1, "STONE": 2, "CLAY": 2 } }, "effects": [{ "type": "COINS", "amount": 3 }, { "type": "OPPONENT_LOSE_COINS", "amount": 3 }, { "type": "EXTRA_TURN" }, { "type": "VICTORY_POINTS", "amount": 3 }] },
+    { "id": "CircusMaximus", "name": "马克西姆斯竞技场", "cost": { "resources": { "GLASS": 1, "STONE": 2, "WOOD": 1 } }, "effects": [{ "type": "DESTROY_CARD", "target_color": "GREY" }, { "type": "MILITARY", "shields": 1 }, { "type": "VICTORY_POINTS", "amount": 3 }] },
+    { "id": "Colossus", "name": "太阳神巨像", "cost": { "resources": { "GLASS": 1, "CLAY": 3 } }, "effects": [{ "type": "MILITARY", "shields": 2 }, { "type": "VICTORY_POINTS", "amount": 3 }] },
+    { "id": "GreatLibrary", "name": "亚历山大图书馆", "cost": { "resources": { "PAPER": 1, "GLASS": 1, "WOOD": 3 } }, "effects": [{ "type": "PROGRESS_TOKEN_SELECT" }, { "type": "VICTORY_POINTS", "amount": 4 }] },
+    { "id": "GreatLighthouse", "name": "亚历山卓灯塔", "cost": { "resources": { "PAPER": 2, "STONE": 1, "WOOD": 1 } }, "effects": [{ "type": "PRODUCTION_CHOICE", "resources": ["STONE", "CLAY", "WOOD"] }, { "type": "VICTORY_POINTS", "amount": 4 }] },
+    { "id": "HangingGardens", "name": "空中花园", "cost": { "resources": { "PAPER": 1, "GLASS": 1, "WOOD": 2 } }, "effects": [{ "type": "COINS", "amount": 6 }, { "type": "EXTRA_TURN" }, { "type": "VICTORY_POINTS", "amount": 3 }] },
+    { "id": "Mausoleum", "name": "摩索拉斯陵墓", "cost": { "resources": { "PAPER": 1, "GLASS": 1, "WOOD": 2 } }, "effects": [{ "type": "BUILD_FROM_DISCARD" }, { "type": "VICTORY_POINTS", "amount": 2 }] },
+    { "id": "Piraeus", "name": "比雷埃夫斯港", "cost": { "resources": { "CLAY": 1, "STONE": 1, "WOOD": 2 } }, "effects": [{ "type": "PRODUCTION_CHOICE", "resources": ["PAPER", "GLASS"] }, { "type": "EXTRA_TURN" }, { "type": "VICTORY_POINTS", "amount": 2 }] },
+    { "id": "Pyramids", "name": "吉萨金字塔", "cost": { "resources": { "PAPER": 1, "STONE": 3 } }, "effects": [{ "type": "VICTORY_POINTS", "amount": 9 }] },
+    { "id": "Sphinx", "name": "斯芬克斯", "cost": { "resources": { "GLASS": 2, "CLAY": 1, "STONE": 1 } }, "effects": [{ "type": "EXTRA_TURN" }, { "type": "VICTORY_POINTS", "amount": 6 }] },
+    { "id": "StatueOfZeus", "name": "宙斯神像", "cost": { "resources": { "PAPER": 2, "WOOD": 1, "CLAY": 1, "STONE": 1 } }, "effects": [{ "type": "DESTROY_CARD", "target_color": "BROWN" }, { "type": "MILITARY", "shields": 1 }, { "type": "VICTORY_POINTS", "amount": 3 }] },
+    { "id": "TempleOfArtemis", "name": "亚底米神庙", "cost": { "resources": { "PAPER": 1, "GLASS": 1, "WOOD": 1, "STONE": 1 } }, "effects": [{ "type": "COINS", "amount": 12 }, { "type": "EXTRA_TURN" }] }
+  ]
+}

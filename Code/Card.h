@@ -1,94 +1,95 @@
+//
+// Created by choyichi on 2025/12/15.
+//
+
 #ifndef SEVEN_WONDERS_DUEL_CARD_H
 #define SEVEN_WONDERS_DUEL_CARD_H
 
-#include "Engine.h"
 #include "Global.h"
-
-/**
- * ======================================================================================
- * [EDUCATIONAL NOTE] - Card Definition (Composite Pattern Idea)
- * ======================================================================================
- * [DESIGN PATTERN] - Composition over Inheritance
- * -----------------------------------------------
- * PROBLEM:
- * If we used inheritance: `class MilitaryCard : public Card`, `class
- * ScienceCard : public Card`. What if a card gives both Military AND Science?
- * `class MilitaryScienceCard`? This leads to "Class Explosion".
- *
- * SOLUTION:
- * Use Composition. A Card "HAS A" list of Effects.
- * It does not matter what the effects are. The Card is just a container.
- *
- * [DESIGN PATTERN] - Composite idea
- * ---------------------------------
- * When we ask `card.getPoints()`, the Card asks all its children (Effects)
- * "What are your points?" and sums them up.
- * The client treats the Card and its Effects uniformly.
- */
+#include "EffectSystem.h"
+#include <string>
+#include <vector>
+#include <memory>
+#include <map>
 
 namespace SevenWondersDuel {
 
-// Simple Data Struct for Cost
-struct ResourceCost {
-  int coins = 0;
-  std::map<ResourceType, int> resources;
-};
+    // 统一费用结构
+    struct ResourceCost {
+        int coins = 0;
+        std::map<ResourceType, int> resources;
 
-class Card {
-public:
-  std::string id;
-  std::string name;
-  int age;
-  CardType type;
-  ResourceCost cost;
+        bool isFree() const { return coins == 0 && resources.empty(); }
+    };
 
-  std::string chainCost;   // Free if player has this symbol (e.g. "Lamp")
-  std::string chainSymbol; // This card provides this symbol (e.g. "Mask")
+    // 卡牌定义
+    struct Card {
+        std::string id;
+        std::string name;
+        int age; // 1, 2, 3
+        CardType type;
 
-  // [SOLID] - Open/Closed Principle
-  // We can add any number of effects without changing Card class structure.
-  std::vector<std::shared_ptr<IEffect>> effects;
+        ResourceCost cost;
 
-  Card(const std::string &id, int age, CardType type)
-      : id(id), name(id), age(age), type(type) {}
+        // 连锁机制
+        std::string chainTag;          // 此卡提供的标记 (如 "MOON")
+        std::string requiresChainTag;  // 此卡需要的标记 (如 "MOON" -> 免费)
 
-  // [COMPOSITE PATTERN]
-  // The Leaf nodes are IEffects. The Composite node is Card.
-  // The operation `getPoints` is delegated to all children.
-  int getPoints(const Player *self, const Player *opponent) const {
-    int total = 0;
-    for (const auto &eff : effects)
-      total += eff->calculateScore(self, opponent);
-    return total;
-  }
+        // 效果列表 (多态)
+        std::vector<std::shared_ptr<IEffect>> effects;
 
-  // Delegate "build" trigger to strategies
-  void onBuild(Player *self, Player *opponent, GameController *ctx);
-};
+        // 构造函数
+        Card() = default;
 
-class Wonder {
-public:
-  std::string id;
-  std::string name;
-  ResourceCost cost;
-  std::vector<std::shared_ptr<IEffect>> effects;
+        // 辅助方法：获取卡牌的基础分 (直接的分 + 效果计算的分)
+        // 注意：这里只计算直接写在卡面上的分，行会卡等动态分需要传入 Context，
+        // 暂时只提供简单接口，复杂计算在 Player 类中聚合。
+        int getVictoryPoints(const Player* self, const Player* opponent) const {
+            int total = 0;
+            for(const auto& eff : effects) {
+                total += eff->calculateScore(self, opponent);
+            }
+            return total;
+        }
+    };
 
-  // State of the Wonder
-  bool isBuilt = false;
-  Card *tuckedCard = nullptr;
+    // 奇迹定义
+    struct Wonder {
+        std::string id;
+        std::string name;
+        ResourceCost cost;
 
-  Wonder(const std::string &id, const std::string &name) : id(id), name(name) {}
+        std::vector<std::shared_ptr<IEffect>> effects;
 
-  int getPoints(const Player *self, const Player *opponent) const {
-    int total = 0;
-    for (const auto &eff : effects)
-      total += eff->calculateScore(self, opponent);
-    return total;
-  }
+        // 状态
+        bool isBuilt = false;
+        // 建造奇迹时垫在下面的那张牌 (用于查看或者甚至可能被某些能力回收)
+        const Card* builtOverlayCard = nullptr;
 
-  void onBuild(Player *self, Player *opponent, GameController *ctx);
-};
+        int getVictoryPoints(const Player* self, const Player* opponent) const {
+            if (!isBuilt) return 0;
+            int total = 0;
+            for(const auto& eff : effects) {
+                total += eff->calculateScore(self, opponent);
+            }
+            return total;
+        }
+    };
 
-} // namespace SevenWondersDuel
+    // 用于金字塔布局的节点
+    struct CardSlot {
+        std::string id;      // 对应 Card 的 ID
+        Card* cardPtr = nullptr;
+        bool isFaceUp = false;
+        bool isRemoved = false;
+
+        int row;
+        int index; // 行内索引
+
+        // 图结构依赖
+        std::vector<int> coveredBy; // 压着我的牌的 Slot 索引
+    };
+
+}
 
 #endif // SEVEN_WONDERS_DUEL_CARD_H
