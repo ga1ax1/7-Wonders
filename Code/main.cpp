@@ -13,7 +13,7 @@ int main() {
 
     // 加载数据 (请确保 gamedata.json 存在于运行目录)
     // 如果没有文件，会报错并退出
-    game.initializeGame("/Users/choyichi/Desktop/7-Wonders/Code/gamedata.json");
+    game.initializeGame("../gamedata.json");
 
     // 2. 游戏配置菜单
     view.renderMainMenu();
