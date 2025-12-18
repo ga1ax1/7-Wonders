@@ -18,7 +18,7 @@ namespace SevenWondersDuel {
         // 为了用户体验，我们可以在这里做一个小循环：如果 View 返回无效输入，重试。
 
         while (true) {
-            Action act = view.promptHumanAction(controller.getModel());
+            Action act = view.promptHumanAction(controller.getModel(), controller.getState());
             if (act.type == static_cast<ActionType>(-1)) {
                 // 用户输入格式错误或取消，重试
                 view.printError("Invalid input format. Please try again.");
@@ -87,17 +87,36 @@ namespace SevenWondersDuel {
         else if (controller.getState() == GameState::WAITING_FOR_DESTRUCTION) {
             // 随机选一个对手的棕/灰卡
             Player* opp = model.getOpponent();
+            bool found = false;
             for (auto c : opp->builtCards) {
                 if (c->type == CardType::RAW_MATERIAL || c->type == CardType::MANUFACTURED) {
                     Action act;
                     act.type = ActionType::SELECT_DESTRUCTION;
                     act.targetCardId = c->id;
                     validActions.push_back(act);
+                    found = true;
                 }
             }
-            // 如果没有可炸的，可能需要一个 SKIP 动作？或者 validateAction 允许空？
-            // 简单起见，如果没有目标，AI 应该执行一个空操作或系统自动跳过。
-            // 这里假设 AI 总能找到目标，或者此时 validActions 为空会导致问题。
+            if (!found) {
+                // 没有可炸的卡，必须发一个空 Action 来跳过状态
+                // 暂时用空 ID 代表跳过，Controller 需处理
+                 Action act;
+                 act.type = ActionType::SELECT_DESTRUCTION;
+                 act.targetCardId = ""; // No target
+                 // 注意：validateAction 可能需要调整以允许空 target
+                 // 或者直接在这里 return
+                 return act;
+            }
+        }
+        // [NEW] 弃牌堆选牌 (Mausoleum)
+        else if (controller.getState() == GameState::WAITING_FOR_DISCARD_BUILD) {
+             const auto& pile = model.board->discardPile;
+             for (auto c : pile) {
+                 Action act;
+                 act.type = ActionType::SELECT_FROM_DISCARD;
+                 act.targetCardId = c->id;
+                 validActions.push_back(act);
+             }
         }
 
         // 2. 随机选择一个
@@ -106,7 +125,9 @@ namespace SevenWondersDuel {
             // 除非是在 WAITING_FOR_DESTRUCTION 且对手无牌。
             // 此时发一个空动作让 Controller 处理 Fallback
             Action noop;
+            // 为了安全，默认选一个大概率不影响流程的类型，或者抛异常
             noop.type = ActionType::SELECT_DESTRUCTION; // 假装
+            noop.targetCardId = "";
             return noop;
         }
 

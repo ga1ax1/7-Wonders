@@ -337,7 +337,7 @@ namespace SevenWondersDuel {
         return -1;
     }
 
-    Action GameView::promptHumanAction(const GameModel& model) {
+    Action GameView::promptHumanAction(const GameModel& model, GameState state) {
         renderGame(model);
 
         Action act;
@@ -359,7 +359,52 @@ namespace SevenWondersDuel {
             return act;
         }
 
-        // 2. 主流程
+        // [NEW] 2. 弃牌堆选牌 (Mausoleum)
+        if (state == GameState::WAITING_FOR_DISCARD_BUILD) {
+            std::cout << "\n--- MAUSOLEUM: SELECT FROM DISCARD PILE ---\n";
+            const auto& pile = model.board->discardPile;
+            std::vector<std::string> discardNames;
+
+            if (pile.empty()) {
+                // 理论上 EffectSystem 会拦截空堆，但以防万一
+                std::cout << "Discard pile is empty. (Press Enter to skip)\n";
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                std::cin.get();
+                // 返回一个无效动作，Controller 应该有处理或我们可以发一个空build?
+                // 实际上我们应该发一个空动作，或者 Controller 会自动跳过
+                // 简单起见，这里假设有牌
+            } else {
+                int idx = 1;
+                for(auto c : pile) {
+                    std::cout << "[" << idx++ << "] " << c->name << " (" << getTypeStr(c->type) << ")\n";
+                    discardNames.push_back(c->name);
+                }
+
+                std::cout << "\nCommand: build [name]\n> ";
+                std::string line;
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                std::getline(std::cin, line);
+
+                std::stringstream ss(line);
+                std::string cmd; ss >> cmd;
+                std::string remainder; std::getline(ss, remainder);
+                size_t first = remainder.find_first_not_of(' ');
+                if (std::string::npos != first) remainder = remainder.substr(first);
+
+                if (cmd == "build") {
+                    int matchIdx = findMatch(discardNames, remainder);
+                    if (matchIdx != -1) {
+                        act.type = ActionType::SELECT_FROM_DISCARD;
+                        act.targetCardId = pile[matchIdx]->id;
+                    } else {
+                        std::cout << "Card not found.\n(Press Enter)"; std::cin.get();
+                    }
+                }
+            }
+            return act;
+        }
+
+        // 3. 主流程
         std::cout << "\n[" << model.getCurrentPlayer()->name << "]'s Turn - Available Cards:\n";
         auto avail = model.board->cardStructure.getAvailableCards();
         std::vector<Card*> visibleCards;

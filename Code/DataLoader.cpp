@@ -29,8 +29,8 @@ namespace SevenWondersDuel {
     }
 
     // 辅助函数：解析 Effect 列表
-    // 新增参数 isFromCard：用于区分效果来源是卡牌还是奇迹 (影响 Military Effect 的 Strategy 逻辑)
-    std::vector<std::shared_ptr<IEffect>> parseEffects(const Value& vList, bool isFromCard) {
+    // [UPDATED] 增加 sourceType 参数，判断是否为 RAW_MATERIAL 或 MANUFACTURED
+    std::vector<std::shared_ptr<IEffect>> parseEffects(const Value& vList, CardType sourceType, bool isFromCard) {
         std::vector<std::shared_ptr<IEffect>> effects;
         const auto& list = vList.asList();
 
@@ -52,7 +52,15 @@ namespace SevenWondersDuel {
                 }
 
                 bool isChoice = (type == "PRODUCTION_CHOICE");
-                effects.push_back(std::make_shared<ProductionEffect>(res, isChoice));
+
+                // [NEW] 如果来源是 RAW_MATERIAL(棕) 或 MANUFACTURED(灰)，且不是 choice，则视为 Tradable
+                bool isTradable = (sourceType == CardType::RAW_MATERIAL || sourceType == CardType::MANUFACTURED);
+                // 奇迹和黄卡产生的资源虽然是固定的 (非 Choice)，但不是 Tradable (例如奇迹产生的玻璃)
+                // 确保只有 Card 来源且颜色正确才算
+                if (!isFromCard) isTradable = false;
+                if (isChoice) isTradable = false; // Choice 资源肯定不参与交易计算
+
+                effects.push_back(std::make_shared<ProductionEffect>(res, isChoice, isTradable));
             }
             else if (type == "MILITARY") {
                 // 传入 isFromCard 标记
@@ -148,7 +156,8 @@ namespace SevenWondersDuel {
             c.requiresChainTag = v["requires_chain"].asString();
 
             // 解析卡牌效果 (Source = Card, True)
-            c.effects = parseEffects(v["effects"], true);
+            // [UPDATED] 传入 c.type
+            c.effects = parseEffects(v["effects"], c.type, true);
             outCards.push_back(c);
         }
 
@@ -161,7 +170,8 @@ namespace SevenWondersDuel {
             w.cost = parseCost(v["cost"]);
 
             // 解析奇迹效果 (Source = Wonder, False)
-            w.effects = parseEffects(v["effects"], false);
+            // Type 这里设为 Wonder 即可，反正 parseEffects 内部会处理 isFromCard=false
+            w.effects = parseEffects(v["effects"], CardType::WONDER, false);
             outWonders.push_back(w);
         }
 

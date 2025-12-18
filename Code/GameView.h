@@ -33,7 +33,7 @@ namespace SevenWondersDuel {
 
 		// 获取用户输入 (人类玩家使用)
 		// 返回构造好的 Action，如果不合法或用户取消，ActionType 可能为 NONE (-1) (需调用者处理)
-		Action promptHumanAction(const GameModel& model);
+		Action promptHumanAction(const GameModel& model, GameState state);
 
 	private:
 		// 内部辅助渲染函数

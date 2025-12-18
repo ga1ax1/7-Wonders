@@ -62,6 +62,21 @@ namespace SevenWondersDuel {
         }
     }
 
+    // [UPDATED] 实现交易价格计算逻辑
+    int Player::getTradingPrice(ResourceType type, const Player& opponent) const {
+        // 如果有特定资源的优惠卡 (如 Stone Reserve)，价格固定为 1
+        if (tradingDiscounts.at(type)) return 1;
+
+        // 否则：2 + 对手该类资源产量的"公开值" (棕/灰卡)
+        // 之前逻辑错误使用了 fixedResources (包含了黄卡/奇迹)
+        // 现在使用 publicProduction
+        int opponentProduction = 0;
+        if (opponent.publicProduction.count(type)) {
+            opponentProduction = opponent.publicProduction.at(type);
+        }
+        return 2 + opponentProduction;
+    }
+
     std::pair<bool, int> Player::calculateCost(const ResourceCost& cost, const Player& opponent) const {
         // 1. 基础金币检查
         if (coins < cost.coins) {

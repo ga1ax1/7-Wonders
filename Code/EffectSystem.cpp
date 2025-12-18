@@ -20,7 +20,7 @@ namespace SevenWondersDuel {
             self->addProductionChoice(choices);
         } else {
             for (auto const& [type, count] : producedResources) {
-                self->addResource(type, count);
+                self->addResource(type, count, isTradable);
             }
         }
     }
@@ -121,6 +121,7 @@ namespace SevenWondersDuel {
 
     // --- 8. DestroyCardEffect ---
     void DestroyCardEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+        ctx->setPendingDestructionType(targetColor);
         ctx->setState(GameState::WAITING_FOR_DESTRUCTION);
     }
 
@@ -135,6 +136,11 @@ namespace SevenWondersDuel {
 
     // --- 10. BuildFromDiscardEffect ---
     void BuildFromDiscardEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+        // [UPDATED] 如果弃牌堆为空，则不触发等待状态，直接记录日志
+        if (ctx->getBoard()->discardPile.empty()) {
+             ctx->addLog("[Effect] Discard pile is empty. Mausoleum effect skipped.");
+             return;
+        }
         ctx->setState(GameState::WAITING_FOR_DISCARD_BUILD);
     }
 

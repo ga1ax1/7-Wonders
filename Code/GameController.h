@@ -105,6 +105,8 @@ namespace SevenWondersDuel {
 
         // --- 辅助逻辑 (公开给 Effects 使用) ---
 
+        void setPendingDestructionType(CardType t) { pendingDestructionType = t; }
+
         void setState(GameState newState) { currentState = newState; }
         Board* getBoard() { return model->board.get(); }
 
@@ -123,6 +125,8 @@ namespace SevenWondersDuel {
         int draftTurnCount = 0; // 记录轮抽阶段的进度 (0-3)
 
         std::mt19937 rng; // 随机数生成器
+
+        CardType pendingDestructionType = CardType::CIVILIAN; // 记录当前必须销毁的卡牌颜色
 
         // --- 内部流程方法 ---
 
@@ -157,6 +161,7 @@ namespace SevenWondersDuel {
         void handleSelectProgressToken(const Action& action);
         void handleDestruction(const Action& action);
         void handleChooseStartingPlayer(const Action& action); // 新增：处理先手选择
+        void handleSelectFromDiscard(const Action& action); // [NEW] 处理弃牌堆选牌
 
         // 辅助：从ID查找对象
         Card* findCardInPyramid(const std::string& id);

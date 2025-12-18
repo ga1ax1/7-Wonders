@@ -255,64 +255,85 @@ namespace SevenWondersDuel {
         }
 
         void setupDependenciesAge3() {
-            // 蛇形/复杂结构 (2-3-4-2-3-4-2)
-            // 整体趋势：Row r 被 Row r+1 遮挡 (Pick from Row 6 up to Row 0)
+            // Age 3 结构 (Row 0 -> Row 6):
+            // Row 0: 2 cards (Face Up)   <- Top
+            // Row 1: 3 cards (Face Down)
+            // Row 2: 4 cards (Face Up)
+            // Row 3: 2 cards (Face Down) <- Neck
+            // Row 4: 3 cards (Face Up)
+            // Row 5: 4 cards (Face Down)
+            // Row 6: 2 cards (Face Up)   <- Bottom (Available at start)
 
             for (int r = 0; r < 6; ++r) {
-                auto upper = getSlotsByRow(r);
-                auto lower = getSlotsByRow(r+1);
+                auto upper = getSlotsByRow(r);     // 被遮挡层
+                auto lower = getSlotsByRow(r + 1); // 遮挡层 (Blocking cards)
 
-                // 由于每行的数量变化不规律 (2->3->4->2->3->4->2)，
-                // 我们需要手动处理每一层的连接关系，或者写通用的重叠逻辑。
-                // 简化通用逻辑：视作中心对齐或交错。
-
-                // 特殊处理层级连接：
-                // Row 0(2) covered by Row 1(3): Upper[k] by Lower[k], Lower[k+1]
-                if (r == 0) { // 2 covered by 3
-                     for(int k=0; k<upper.size(); ++k) {
-                         upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
-                         upper[k]->coveredBy.push_back(getAbsIndex(lower[k+1]));
-                     }
+                if (r == 0) {
+                    // 2 covered by 3 (Standard Expansion)
+                    // U0 <- L0, L1
+                    // U1 <- L1, L2
+                    if(upper.size() > 0 && lower.size() > 1) {
+                        upper[0]->coveredBy.push_back(getAbsIndex(lower[0]));
+                        upper[0]->coveredBy.push_back(getAbsIndex(lower[1]));
+                    }
+                    if(upper.size() > 1 && lower.size() > 2) {
+                        upper[1]->coveredBy.push_back(getAbsIndex(lower[1]));
+                        upper[1]->coveredBy.push_back(getAbsIndex(lower[2]));
+                    }
                 }
-                else if (r == 1) { // 3 covered by 4
-                    for(int k=0; k<upper.size(); ++k) {
-                         upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
-                         upper[k]->coveredBy.push_back(getAbsIndex(lower[k+1]));
-                     }
+                else if (r == 1) {
+                    // 3 covered by 4 (Standard Expansion)
+                    for(int i=0; i<3; ++i) {
+                         if (upper.size() > i && lower.size() > i+1) {
+                             upper[i]->coveredBy.push_back(getAbsIndex(lower[i]));
+                             upper[i]->coveredBy.push_back(getAbsIndex(lower[i+1]));
+                         }
+                    }
                 }
-                else if (r == 2) { // 4 covered by 2 (Narrowing!)
-                    // 4 cards (0,1,2,3) vs 2 cards (0,1)
-                    // Visual:
-                    //   U0 U1 U2 U3
-                    //     L0 L1
-                    // U0 covered by nothing? No, strict graph.
-                    // Usually middle ones are covered.
-                    // Let's assume: U1 covered by L0, U2 covered by L1.
-                    // U0 and U3 are EXPOSED edges? (Possible in Duel)
-                    // If U0/U3 are exposed, they have empty coveredBy.
-
-                    if (lower.size() >= 1) upper[1]->coveredBy.push_back(getAbsIndex(lower[0]));
-                    if (lower.size() >= 2) upper[2]->coveredBy.push_back(getAbsIndex(lower[1]));
-                    // U0 and U3 remain uncovered from below (accessible once R1 cleared?)
-                    // Actually, Age 3 usually has more accessible cards.
+                else if (r == 2) {
+                    // 4 covered by 2 (Narrowing / Neck)
+                    // 左边2张(0,1) 被 L0 遮挡
+                    // 右边2张(2,3) 被 L1 遮挡
+                    if (lower.size() > 0) {
+                        if(upper.size() > 0) upper[0]->coveredBy.push_back(getAbsIndex(lower[0]));
+                        if(upper.size() > 1) upper[1]->coveredBy.push_back(getAbsIndex(lower[0]));
+                    }
+                    if (lower.size() > 1) {
+                        if(upper.size() > 2) upper[2]->coveredBy.push_back(getAbsIndex(lower[1]));
+                        if(upper.size() > 3) upper[3]->coveredBy.push_back(getAbsIndex(lower[1]));
+                    }
                 }
-                else if (r == 3) { // 2 covered by 3 (Widening)
-                    for(int k=0; k<upper.size(); ++k) {
-                         upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
-                         upper[k]->coveredBy.push_back(getAbsIndex(lower[k+1]));
-                     }
+                else if (r == 3) {
+                    // 2 covered by 3 (Widening)
+                    if(upper.size() > 0 && lower.size() > 1) {
+                        upper[0]->coveredBy.push_back(getAbsIndex(lower[0]));
+                        upper[0]->coveredBy.push_back(getAbsIndex(lower[1]));
+                    }
+                    if(upper.size() > 1 && lower.size() > 2) {
+                        upper[1]->coveredBy.push_back(getAbsIndex(lower[1]));
+                        upper[1]->coveredBy.push_back(getAbsIndex(lower[2]));
+                    }
                 }
-                else if (r == 4) { // 3 covered by 4 (Widening)
-                    for(int k=0; k<upper.size(); ++k) {
-                         upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
-                         upper[k]->coveredBy.push_back(getAbsIndex(lower[k+1]));
-                     }
+                else if (r == 4) {
+                    // 3 covered by 4 (Standard Expansion)
+                    for(int i=0; i<3; ++i) {
+                         if (upper.size() > i && lower.size() > i+1) {
+                             upper[i]->coveredBy.push_back(getAbsIndex(lower[i]));
+                             upper[i]->coveredBy.push_back(getAbsIndex(lower[i+1]));
+                         }
+                    }
                 }
-                else if (r == 5) { // 4 covered by 2 (Narrowing)
-                    // Similar to r=2
-                     if (lower.size() >= 1) upper[1]->coveredBy.push_back(getAbsIndex(lower[0]));
-                     if (lower.size() >= 2) upper[2]->coveredBy.push_back(getAbsIndex(lower[1]));
-                     // U0, U3 exposed
+                else if (r == 5) {
+                    // 4 covered by 2 (Narrowing to Bottom)
+                    // 同 r==2 的逻辑
+                    if (lower.size() > 0) {
+                        if(upper.size() > 0) upper[0]->coveredBy.push_back(getAbsIndex(lower[0]));
+                        if(upper.size() > 1) upper[1]->coveredBy.push_back(getAbsIndex(lower[0]));
+                    }
+                    if (lower.size() > 1) {
+                        if(upper.size() > 2) upper[2]->coveredBy.push_back(getAbsIndex(lower[1]));
+                        if(upper.size() > 3) upper[3]->coveredBy.push_back(getAbsIndex(lower[1]));
+                    }
                 }
             }
         }

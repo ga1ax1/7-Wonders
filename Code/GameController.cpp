@@ -304,6 +304,8 @@ namespace SevenWondersDuel {
             return;
         }
 
+        // 如果状态切换了（比如因为陵墓变为 WAITING_FOR_DISCARD_BUILD），就不立即结束回合
+        // 只有还在 PLAY PHASE 才结束（代表没有触发打断型效果）
         if (currentState == GameState::AGE_PLAY_PHASE) {
             onTurnEnd();
         }
@@ -341,6 +343,14 @@ namespace SevenWondersDuel {
     }
 
     void GameController::handleDestruction(const Action& action) {
+        // 如果 ID 为空，说明跳过
+        if (action.targetCardId.empty()) {
+            model->addLog("[System] Destruction skipped (no valid target or player chose to skip).");
+            currentState = GameState::AGE_PLAY_PHASE;
+            onTurnEnd();
+            return;
+        }
+
         Player* opponent = model->getOpponent();
         CardType targetType = CardType::CIVILIAN; // Fallback
 
@@ -377,6 +387,39 @@ namespace SevenWondersDuel {
         model->currentPlayerIndex = nextStarter;
     }
 
+    // [NEW] 处理弃牌堆选牌 (Mausoleum)
+    void GameController::handleSelectFromDiscard(const Action& action) {
+        Player* currPlayer = model->getCurrentPlayer();
+        Player* opponent = model->getOpponent();
+
+        // 1. 在弃牌堆中查找
+        auto& pile = model->board->discardPile;
+        auto it = std::find_if(pile.begin(), pile.end(), [&](Card* c){ return c->id == action.targetCardId; });
+
+        if (it != pile.end()) {
+            Card* card = *it;
+            // 2. 移除并加入玩家建筑
+            pile.erase(it);
+            currPlayer->constructCard(card);
+
+            model->addLog("[" + currPlayer->name + "] resurrected " + card->name + " from discard!");
+
+            // 3. 应用效果
+            for(auto& eff : card->effects) {
+                eff->apply(currPlayer, opponent, this);
+            }
+
+            // 4. 检查连带效果
+             if (checkForNewSciencePairs(currPlayer)) {
+                return;
+            }
+        }
+
+        // 恢复正常状态并结束回合
+        currentState = GameState::AGE_PLAY_PHASE;
+        onTurnEnd();
+    }
+
     // --- 校验 ---
 
     ActionResult GameController::validateAction(const Action& action) {
@@ -406,6 +449,62 @@ namespace SevenWondersDuel {
             }
             result.message = "Must select a Progress Token";
             return result;
+        }
+
+        if (currentState == GameState::WAITING_FOR_DESTRUCTION) {
+            if (action.type == ActionType::SELECT_DESTRUCTION) {
+                // 1. 检查目标是否是空 (跳过)
+                if (action.targetCardId.empty()) {
+                    // 如果允许跳过（例如对手没有该颜色的卡），这里返回 true
+                    // 简单逻辑：总是允许跳过
+                    result.isValid = true;
+                    return result;
+                }
+
+                // 2. 检查对手是否真的有这张卡
+                Player* opponent = model->getOpponent();
+                bool hasCard = false;
+                Card* targetCard = nullptr;
+                for (auto c : opponent->builtCards) {
+                    if (c->id == action.targetCardId) {
+                        hasCard = true;
+                        targetCard = c;
+                        break;
+                    }
+                }
+
+                if (!hasCard || !targetCard) {
+                    result.message = "Opponent does not possess this card";
+                    return result;
+                }
+
+                // 3. [核心修复] 检查颜色是否匹配
+                if (targetCard->type != pendingDestructionType) {
+                    result.message = "Invalid card color. Must destroy a specific type.";
+                    return result;
+                }
+
+                result.isValid = true;
+                return result;
+            }
+            result.message = "Must select a card to destroy (or empty to skip)";
+            return result;
+        }
+
+        // [NEW] 校验弃牌堆选择
+        if (currentState == GameState::WAITING_FOR_DISCARD_BUILD) {
+             if (action.type == ActionType::SELECT_FROM_DISCARD) {
+                 auto& pile = model->board->discardPile;
+                 auto it = std::find_if(pile.begin(), pile.end(), [&](Card* c){ return c->id == action.targetCardId; });
+                 if (it != pile.end()) {
+                     result.isValid = true;
+                     return result;
+                 }
+                 result.message = "Card not found in discard pile";
+                 return result;
+             }
+             result.message = "Must select a card from discard pile";
+             return result;
         }
 
         if (currentState == GameState::WAITING_FOR_START_PLAYER_SELECTION) {
@@ -475,6 +574,7 @@ namespace SevenWondersDuel {
             case ActionType::SELECT_PROGRESS_TOKEN: handleSelectProgressToken(action); break;
             case ActionType::SELECT_DESTRUCTION: handleDestruction(action); break;
             case ActionType::CHOOSE_STARTING_PLAYER: handleChooseStartingPlayer(action); break;
+            case ActionType::SELECT_FROM_DISCARD: handleSelectFromDiscard(action); break; // [NEW]
             default: return false;
         }
         return true;

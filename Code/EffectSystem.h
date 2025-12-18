@@ -36,9 +36,10 @@ namespace SevenWondersDuel {
     public:
         std::map<ResourceType, int> producedResources;
         bool isChoice; // true=多选一 (如黄卡/奇迹), false=全部产出 (如灰卡/棕卡)
+        bool isTradable; // [NEW] true=增加对手交易成本 (棕/灰卡), false=私有 (黄卡/奇迹)
 
-        ProductionEffect(std::map<ResourceType, int> res, bool choice = false)
-            : producedResources(res), isChoice(choice) {}
+        ProductionEffect(std::map<ResourceType, int> res, bool choice = false, bool tradable = false)
+            : producedResources(res), isChoice(choice), isTradable(tradable) {}
 
         void apply(Player* self, Player* opponent, GameController* ctx) override;
         std::string getDescription() const override;
