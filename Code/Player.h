@@ -33,6 +33,9 @@ namespace SevenWondersDuel {
         std::vector<std::vector<ResourceType>> choiceResources; // 多选一资源 (如: 木/土/石)
 
         std::map<ScienceSymbol, int> scienceSymbols;
+        // 新增：记录已触发过"配对奖励"的符号，避免重复触发
+        std::set<ScienceSymbol> claimedSciencePairs;
+
         std::set<std::string> ownedChainTags; // 拥有的连锁标记 (如 "MOON")
 
         std::set<ProgressToken> progressTokens;

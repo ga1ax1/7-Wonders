@@ -48,8 +48,11 @@ namespace SevenWondersDuel {
     class MilitaryEffect : public IEffect {
     public:
         int shields;
+        bool isFromCard; // 标记：来源是否为卡牌（用于 Strategy 标记判断）
 
-        explicit MilitaryEffect(int count) : shields(count) {}
+        explicit MilitaryEffect(int count, bool fromCard = false)
+            : shields(count), isFromCard(fromCard) {}
+
         void apply(Player* self, Player* opponent, GameController* ctx) override;
         std::string getDescription() const override;
     };

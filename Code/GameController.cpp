@@ -64,6 +64,7 @@ namespace SevenWondersDuel {
 
     void GameController::startGame() {
         currentState = GameState::WONDER_DRAFT_PHASE_1;
+        draftTurnCount = 0;
         initWondersDeck();
         dealWondersToDraft();
         model->addLog("[System] Game Started. Wonder Draft Phase 1.");
@@ -93,6 +94,41 @@ namespace SevenWondersDuel {
         model->board->cardStructure.init(age, deck);
         currentState = GameState::AGE_PLAY_PHASE;
         model->addLog("[System] Age " + std::to_string(age) + " Begins!");
+    }
+
+    void GameController::prepareNextAge() {
+        // 检查是否结束 Age 3 -> 文官胜利
+        if (model->currentAge == 3) {
+            currentState = GameState::GAME_OVER;
+            model->victoryType = VictoryType::CIVILIAN;
+
+            // 计算分数判定胜负
+            int s1 = model->players[0]->getScore(*model->players[1]);
+            int s2 = model->players[1]->getScore(*model->players[0]);
+
+            if (s1 > s2) model->winnerIndex = 0;
+            else if (s2 > s1) model->winnerIndex = 1;
+            else {
+                // 平局判定：蓝卡分
+                model->winnerIndex = -1; // Draw
+                model->addLog("[System] Score Tie! (Detailed tie-breaker TODO)");
+            }
+            return;
+        }
+
+        // 准备进入下一时代：判定谁决定先手
+        int decisionMaker = -1;
+        int pos = model->board->militaryTrack.position;
+
+        if (pos > 0) decisionMaker = 1;
+        else if (pos < 0) decisionMaker = 0;
+        else decisionMaker = model->currentPlayerIndex; // 刚刚行动完的玩家
+
+        model->currentPlayerIndex = decisionMaker;
+        currentState = GameState::WAITING_FOR_START_PLAYER_SELECTION;
+
+        model->addLog("[System] End of Age " + std::to_string(model->currentAge) +
+                      ". " + model->getCurrentPlayer()->name + " chooses who starts next age.");
     }
 
     std::vector<Card*> GameController::prepareDeckForAge(int age) {
@@ -129,11 +165,26 @@ namespace SevenWondersDuel {
     }
 
     void GameController::switchPlayer() {
+        model->currentPlayerIndex = 1 - model->currentPlayerIndex;
+    }
+
+    void GameController::onTurnEnd() {
+        // 1. 检查胜利条件 (军事/科技)
+        checkVictoryConditions();
+        if (currentState == GameState::GAME_OVER) return;
+
+        // 2. 检查是否时代结束 (金字塔空了)
+        if (model->getRemainingCardCount() == 0) {
+            prepareNextAge();
+            return;
+        }
+
+        // 3. 正常回合切换
         if (extraTurnPending) {
             extraTurnPending = false;
             model->addLog(">> EXTRA TURN for " + model->getCurrentPlayer()->name);
         } else {
-            model->currentPlayerIndex = 1 - model->currentPlayerIndex;
+            switchPlayer();
         }
     }
 
@@ -152,15 +203,26 @@ namespace SevenWondersDuel {
 
             model->addLog("[" + currPlayer->name + "] drafted wonder: " + w->name);
 
-            switchPlayer();
+            // 1-2-1 逻辑
+            bool shouldSwitch = true;
+            if (draftTurnCount == 1) shouldSwitch = false;
+
+            draftTurnCount++;
 
             if (model->draftPool.empty()) {
                 if (currentState == GameState::WONDER_DRAFT_PHASE_1) {
                     currentState = GameState::WONDER_DRAFT_PHASE_2;
                     dealWondersToDraft();
-                    model->addLog("[System] Wonder Draft Phase 2 Begins.");
+                    draftTurnCount = 0;
+                    model->currentPlayerIndex = 1;
+                    model->addLog("[System] Wonder Draft Phase 2 Begins. Player 2 starts.");
                 } else {
                     setupAge(1);
+                    model->currentPlayerIndex = 0;
+                }
+            } else {
+                if (shouldSwitch) {
+                    model->currentPlayerIndex = 1 - model->currentPlayerIndex;
                 }
             }
         }
@@ -183,13 +245,12 @@ namespace SevenWondersDuel {
             eff->apply(currPlayer, opponent, this);
         }
 
-        // 配对检测 (简化逻辑：若有2个相同符号，触发事件)
-        // 实际逻辑应在此处 setState(WAITING_FOR_TOKEN_SELECTION_PAIR)
-        // 为了简化流程，暂不中断游戏
+        if (checkForNewSciencePairs(currPlayer)) {
+            return;
+        }
 
         if (currentState == GameState::AGE_PLAY_PHASE) {
-             checkVictoryConditions();
-             if (currentState != GameState::GAME_OVER) switchPlayer();
+             onTurnEnd();
         }
     }
 
@@ -204,7 +265,8 @@ namespace SevenWondersDuel {
         currPlayer->gainCoins(gain);
 
         model->addLog("[" + currPlayer->name + "] discarded " + targetCard->name + " (+ " + std::to_string(gain) + " coins)");
-        switchPlayer();
+
+        onTurnEnd();
     }
 
     void GameController::handleBuildWonder(const Action& action) {
@@ -232,15 +294,18 @@ namespace SevenWondersDuel {
             model->players[1]->unbuiltWonders.clear();
         }
 
+        // 核心修复：Theology Token 效果
+        if (currPlayer->progressTokens.count(ProgressToken::THEOLOGY)) {
+             grantExtraTurn();
+             model->addLog("[Effect] Theology Token grants an Extra Turn!");
+        }
+
+        if (checkForNewSciencePairs(currPlayer)) {
+            return;
+        }
+
         if (currentState == GameState::AGE_PLAY_PHASE) {
-            checkVictoryConditions();
-            if (currentState != GameState::GAME_OVER) {
-                if (!extraTurnPending) switchPlayer();
-                else {
-                    extraTurnPending = false;
-                    model->addLog("[System] EXTRA TURN triggered!");
-                }
-            }
+            onTurnEnd();
         }
     }
 
@@ -261,16 +326,55 @@ namespace SevenWondersDuel {
                 sourcePool->erase(it);
                 currPlayer->addProgressToken(token);
                 model->addLog("[" + currPlayer->name + "] selected a Progress Token.");
+
                 currentState = GameState::AGE_PLAY_PHASE;
+
+                if (token == ProgressToken::LAW) {
+                    if (checkForNewSciencePairs(currPlayer)) {
+                        return;
+                    }
+                }
+
+                onTurnEnd();
             }
         }
     }
 
     void GameController::handleDestruction(const Action& action) {
-        model->addLog("[System] Card destroyed by effect.");
+        Player* opponent = model->getOpponent();
+        CardType targetType = CardType::CIVILIAN; // Fallback
+
+        Card* target = nullptr;
+        for(auto c : opponent->builtCards) {
+            if (c->id == action.targetCardId) {
+                target = c; break;
+            }
+        }
+
+        if (target) {
+             model->board->destroyCard(opponent, target->type);
+             model->addLog("[System] " + opponent->name + "'s card " + target->name + " destroyed.");
+        }
+
         currentState = GameState::AGE_PLAY_PHASE;
-        if (!extraTurnPending) switchPlayer();
-        else extraTurnPending = false;
+        onTurnEnd();
+    }
+
+    void GameController::handleChooseStartingPlayer(const Action& action) {
+        Player* curr = model->getCurrentPlayer();
+        Player* opponent = model->getOpponent();
+
+        int nextStarter = -1;
+        if (action.targetCardId == "ME") {
+            nextStarter = model->currentPlayerIndex;
+            model->addLog(curr->name + " chose to go first.");
+        } else {
+            nextStarter = 1 - model->currentPlayerIndex;
+            model->addLog(curr->name + " chose opponent to go first.");
+        }
+
+        setupAge(model->currentAge + 1);
+        model->currentPlayerIndex = nextStarter;
     }
 
     // --- 校验 ---
@@ -292,6 +396,27 @@ namespace SevenWondersDuel {
                 return result;
             }
             result.message = "Invalid action for Draft Phase";
+            return result;
+        }
+
+        if (currentState == GameState::WAITING_FOR_TOKEN_SELECTION_PAIR ||
+            currentState == GameState::WAITING_FOR_TOKEN_SELECTION_LIB) {
+            if (action.type == ActionType::SELECT_PROGRESS_TOKEN) {
+                result.isValid = true; return result;
+            }
+            result.message = "Must select a Progress Token";
+            return result;
+        }
+
+        if (currentState == GameState::WAITING_FOR_START_PLAYER_SELECTION) {
+            if (action.type == ActionType::CHOOSE_STARTING_PLAYER) {
+                if (action.targetCardId == "ME" || action.targetCardId == "OPPONENT") {
+                    result.isValid = true; return result;
+                }
+                result.message = "Target must be ME or OPPONENT";
+                return result;
+            }
+            result.message = "Must choose starting player";
             return result;
         }
 
@@ -349,6 +474,7 @@ namespace SevenWondersDuel {
             case ActionType::BUILD_WONDER: handleBuildWonder(action); break;
             case ActionType::SELECT_PROGRESS_TOKEN: handleSelectProgressToken(action); break;
             case ActionType::SELECT_DESTRUCTION: handleDestruction(action); break;
+            case ActionType::CHOOSE_STARTING_PLAYER: handleChooseStartingPlayer(action); break;
             default: return false;
         }
         return true;
@@ -356,16 +482,29 @@ namespace SevenWondersDuel {
 
     // --- 缺失函数实现 ---
 
+    bool GameController::checkForNewSciencePairs(Player* p) {
+        for (auto const& [sym, count] : p->scienceSymbols) {
+            if (sym == ScienceSymbol::NONE) continue;
+
+            if (count >= 2) {
+                if (p->claimedSciencePairs.find(sym) == p->claimedSciencePairs.end()) {
+                    p->claimedSciencePairs.insert(sym);
+                    setState(GameState::WAITING_FOR_TOKEN_SELECTION_PAIR);
+                    model->addLog(p->name + " collected a Science Pair! Choose a Progress Token.");
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     void GameController::resolveMilitaryLoot(const std::vector<int>& lootEvents) {
-        // lootEvents: 正数表示P1推P2(P2丢钱), 负数表示P2推P1(P1丢钱)
         for (int amount : lootEvents) {
             if (amount > 0) {
-                // P2 丢钱 (amount: 2 or 5)
                 int loss = std::min(model->players[1]->coins, amount);
                 model->players[1]->payCoins(loss);
                 model->addLog("[Military] Player 2 lost " + std::to_string(loss) + " coins!");
             } else {
-                // P1 丢钱
                 int loss = std::min(model->players[0]->coins, std::abs(amount));
                 model->players[0]->payCoins(loss);
                 model->addLog("[Military] Player 1 lost " + std::to_string(loss) + " coins!");
@@ -376,7 +515,6 @@ namespace SevenWondersDuel {
     void GameController::checkVictoryConditions() {
         if (std::abs(model->board->militaryTrack.position) >= 9) {
             currentState = GameState::GAME_OVER;
-            // Pos > 0 means P1(Left) pushed to P2(Right). So P1 wins.
             if (model->board->militaryTrack.position > 0) model->winnerIndex = 0;
             else model->winnerIndex = 1;
             model->victoryType = VictoryType::MILITARY;
