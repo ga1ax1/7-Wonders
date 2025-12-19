@@ -28,8 +28,7 @@ namespace SevenWondersDuel {
 
         // 打印普通消息
 		void printMessage(const std::string& msg);
-        // 打印回合信息
-        void printTurnInfo(const Player* player);
+        // (已弃用，功能合并入 Dashboard) void printTurnInfo(const Player* player);
 
 		// 获取用户输入 (人类玩家使用) - 包含内部交互循环
 		Action promptHumanAction(const GameModel& model, GameState state);
@@ -44,7 +43,7 @@ namespace SevenWondersDuel {
         // ID 映射上下文
         struct RenderContext {
             std::map<int, std::string> cardIdMap;   // Display ID -> Card ID
-            std::map<int, std::string> wonderIdMap; // Display ID -> Wonder ID
+            std::map<int, std::string> wonderIdMap; // Display ID -> Wonder ID (全局编号)
             std::map<int, ProgressToken> tokenIdMap;// Display ID -> Token
             std::vector<std::string> draftWonderIds; // Index 0-based -> Wonder ID
         } ctx;
@@ -71,7 +70,8 @@ namespace SevenWondersDuel {
 		void renderHeader(const GameModel& model);
 		void renderMilitaryTrack(const Board& board);
         void renderProgressTokens(const std::vector<ProgressToken>& tokens);
-		void renderPlayerDashboard(const Player& p, bool isCurrent, const Player& opp);
+		// [Updated] 增加 wonderCounter 参数以实现全局编号
+		void renderPlayerDashboard(const Player& p, bool isCurrent, const Player& opp, int& wonderCounter);
         void renderPyramid(const GameModel& model);
         void renderActionLog(const std::vector<std::string>& log);
         void renderCommandHelp(bool isDraft);

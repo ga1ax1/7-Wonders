@@ -45,16 +45,11 @@ int main() {
     // 4. 主循环
     while (game.getState() != GameState::GAME_OVER) {
         const auto& model = game.getModel();
-
-        // 渲染逻辑优化：
-        // 如果当前是人类玩家，promptHumanAction 内部会处理渲染，所以这里不需要 renderGame
-        // 但如果是 AI 玩家，我们需要在这里渲染以便观看
-        // 或者，为了简单统一，我们在 AI 行动前渲染一次。
         IPlayerAgent* currentAgent = (model.currentPlayerIndex == 0) ? agent1.get() : agent2.get();
 
+        // 渲染逻辑优化：AI 回合主动渲染以便观看，人类回合由 promptHumanAction 内部渲染
         if (!currentAgent->isHuman()) {
-            view.renderGameForAI(model); // 使用 AI 专用渲染接口 (其实就是 renderGame)
-            view.printTurnInfo(model.getCurrentPlayer());
+            view.renderGameForAI(model);
         }
 
         // 获取决策
@@ -71,18 +66,13 @@ int main() {
                 actionSuccess = true;
                 // 成功执行后，清除错误信息 (如果有残留)
                 view.clearLastError();
-
-                if (!currentAgent->isHuman()) {
-                    // AI 动作后稍微停顿或打印 (已在 Agent.cpp 中 sleep)
-                }
             } else {
                 // 动作逻辑失败 (例如钱不够)
                 if (currentAgent->isHuman()) {
                     // 将错误信息注入 View，并在下一次循环的 promptHumanAction 中显示
                     view.setLastError("Action Failed: " + val.message);
-                    // 循环继续，promptHumanAction 会再次被调用，并渲染此错误
                 } else {
-                    // [Fix] GameView 移除了 printError，对于 AI 的严重逻辑错误，直接使用标准错误流输出
+                    // 对于 AI 的严重逻辑错误，直接使用标准错误流输出
                     std::cerr << "\033[1;31m[CRITICAL] AI attempted invalid action: " << val.message << "\033[0m" << std::endl;
                     actionSuccess = true; // Skip to prevent infinite loop
                 }
