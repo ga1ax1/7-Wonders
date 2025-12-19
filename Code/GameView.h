@@ -18,19 +18,14 @@ namespace SevenWondersDuel {
 		GameView() = default;
 
 		// --- 公共接口 ---
-
 		void clearScreen();
 		void renderMainMenu();
 
-        // 设置错误信息（将在下一次 renderGame 中显示）
         void setLastError(const std::string& msg);
         void clearLastError();
-
-        // 打印普通消息
 		void printMessage(const std::string& msg);
-        // (已弃用，功能合并入 Dashboard) void printTurnInfo(const Player* player);
 
-		// 获取用户输入 (人类玩家使用) - 包含内部交互循环
+		// 获取用户输入 (核心交互循环)
 		Action promptHumanAction(const GameModel& model, GameState state);
 
         // 暴露渲染接口供 AI 回合使用
@@ -38,26 +33,39 @@ namespace SevenWondersDuel {
 
 	private:
         // --- 内部状态 ---
-        std::string m_lastError; // 存储上一条错误信息
+        std::string m_lastError;
 
-        // ID 映射上下文
+        // 渲染上下文：用于将显示的短ID (1, 2...) 映射回字符串 ID
         struct RenderContext {
-            std::map<int, std::string> cardIdMap;   // Display ID -> Card ID
-            std::map<int, std::string> wonderIdMap; // Display ID -> Wonder ID (全局编号)
-            std::map<int, ProgressToken> tokenIdMap;// Display ID -> Token
-            std::vector<std::string> draftWonderIds; // Index 0-based -> Wonder ID
+            std::map<int, std::string> cardIdMap;     // 金字塔卡牌
+            std::map<int, std::string> wonderIdMap;   // 奇迹
+            std::map<int, ProgressToken> tokenIdMap;  // 桌面科技标记
+
+            // 新增：特殊状态所需的映射
+            std::map<int, std::string> oppCardIdMap;  // 对手已建成卡牌 (用于摧毁)
+            std::map<int, std::string> discardIdMap;  // 弃牌堆卡牌 (用于陵墓)
+            std::map<int, ProgressToken> boxTokenIdMap; // 盒子里的标记 (用于图书馆)
+
+            std::vector<std::string> draftWonderIds;  // 轮抽
         } ctx;
 
 		// --- 渲染组件 ---
 
-		void renderGame(const GameModel& model);
+        // 主渲染入口
+		void renderGame(const GameModel& model, GameState state);
+
+        // 分阶段/状态渲染
         void renderDraftPhase(const GameModel& model);
+        void renderTokenSelection(const GameModel& model, bool fromBox);
+        void renderDestructionPhase(const GameModel& model);
+        void renderDiscardBuildPhase(const GameModel& model);
+        void renderStartPlayerSelect(const GameModel& model);
 
         // 基础绘图
 		void printLine(char c = '-', int width = 80);
         void printCentered(const std::string& text, int width = 80);
 
-        // 文本与颜色
+        // 格式化辅助
 		std::string getCardColorCode(CardType t);
         std::string getResetColor();
         std::string getTypeStr(CardType t);
@@ -69,15 +77,17 @@ namespace SevenWondersDuel {
         // 模块渲染
 		void renderHeader(const GameModel& model);
 		void renderMilitaryTrack(const Board& board);
-        void renderProgressTokens(const std::vector<ProgressToken>& tokens);
-		// [Updated] 增加 wonderCounter 参数以实现全局编号
-		void renderPlayerDashboard(const Player& p, bool isCurrent, const Player& opp, int& wonderCounter);
+        void renderProgressTokens(const std::vector<ProgressToken>& tokens, bool isBoxContext = false);
+
+        // [Updated] Dashboard 增加 targetMode 用于摧毁阶段显示 ID
+		void renderPlayerDashboard(const Player& p, bool isCurrent, const Player& opp, int& wonderCounter, bool targetMode = false);
+
         void renderPyramid(const GameModel& model);
         void renderActionLog(const std::vector<std::string>& log);
-        void renderCommandHelp(bool isDraft);
-        void renderErrorMessage(); // 专门渲染错误区域
+        void renderCommandHelp(GameState state);
+        void renderErrorMessage();
 
-        // 辅助页面
+        // 详情页
 		void renderPlayerDetailFull(const Player& p, const Player& opp);
 		void renderCardDetail(const Card& c);
 		void renderWonderDetail(const Wonder& w);
@@ -85,7 +95,7 @@ namespace SevenWondersDuel {
         void renderDiscardPile(const std::vector<Card*>& pile);
         void renderFullLog(const std::vector<std::string>& log);
 
-        // 内部辅助
+        // 解析辅助
         int parseId(const std::string& input, char prefix);
 	};
 
