@@ -6,31 +6,70 @@
 #include <limits>
 #include <algorithm>
 #include <map>
+#include <cmath>
 
 namespace SevenWondersDuel {
 
-    // --- 基础工具 ---
+    // ==========================================================
+    //  基础工具
+    // ==========================================================
 
-    void GameView::clearScreen() {
-        // 暴力清屏：打印大量换行符，推走旧内容
-        // 这是解决 IDE (CLion/Xcode) 控制台不支持 ANSI 清屏的最通用土办法
-        std::cout << std::string(100, '\n');
+    void GameView::clearScreen() { std::cout << "\033[2J\033[1;1H"; }
+    void GameView::printLine(char c, int width) { std::cout << std::string(width, c) << "\n"; }
 
-        // 尝试 ANSI 复位光标 (如果在支持的终端里体验更好)
-        std::cout << "\033[2J\033[1;1H";
+    void GameView::printCentered(const std::string& text, int width) {
+        int len = 0; bool inEsc = false;
+        for(char c : text) { if(c=='\033') inEsc=true; if(!inEsc) len++; if(inEsc && c=='m') inEsc=false; }
+        int padding = (width - len) / 2;
+        if (padding > 0) std::cout << std::string(padding, ' ');
+        std::cout << text << "\n";
     }
 
-    void GameView::printLine(char c, int width) {
-        std::cout << std::string(width, c) << std::endl;
+    int GameView::parseId(const std::string& input, char prefix) {
+        if (input.empty()) return -1;
+        std::string numPart = input;
+        if (toupper(input[0]) == prefix && input.size() > 1) numPart = input.substr(1);
+        try { return std::stoi(numPart); } catch (...) { return -1; }
     }
 
-    void GameView::renderHeader(const std::string& text) {
-        printLine('=');
-        std::cout << "  " << text << std::endl;
-        printLine('=');
+    void GameView::setLastError(const std::string& msg) { m_lastError = msg; }
+    void GameView::clearLastError() { m_lastError = ""; }
+    void GameView::printMessage(const std::string& msg) { std::cout << "\033[96m[INFO] " << msg << "\033[0m\n"; }
+
+    // ==========================================================
+    //  颜色与文本
+    // ==========================================================
+
+    std::string GameView::getCardColorCode(CardType t) {
+        switch(t) {
+            case CardType::RAW_MATERIAL: return "\033[33m";
+            case CardType::MANUFACTURED: return "\033[90m";
+            case CardType::CIVILIAN: return "\033[34m";
+            case CardType::SCIENTIFIC: return "\033[32m";
+            case CardType::COMMERCIAL: return "\033[93m";
+            case CardType::MILITARY: return "\033[31m";
+            case CardType::GUILD: return "\033[35m";
+            case CardType::WONDER: return "\033[36m";
+            default: return "\033[0m";
+        }
     }
 
-    // --- 文本转换辅助 ---
+    std::string GameView::getResetColor() { return "\033[0m"; }
+
+    std::string GameView::getTypeStr(CardType t) {
+        std::string name;
+        switch(t) {
+            case CardType::RAW_MATERIAL: name = "Brown"; break;
+            case CardType::MANUFACTURED: name = "Grey"; break;
+            case CardType::CIVILIAN: name = "Blue"; break;
+            case CardType::SCIENTIFIC: name = "Green"; break;
+            case CardType::COMMERCIAL: name = "Yellow"; break;
+            case CardType::MILITARY: name = "Red"; break;
+            case CardType::GUILD: name = "Guild"; break;
+            default: name = "Unknown";
+        }
+        return getCardColorCode(t) + name + getResetColor();
+    }
 
     std::string GameView::getTokenName(ProgressToken t) {
         switch(t) {
@@ -48,449 +87,617 @@ namespace SevenWondersDuel {
         }
     }
 
-    std::string getTokenDesc(ProgressToken t) {
-        switch(t) {
-            case ProgressToken::AGRICULTURE: return "6 Coins immediately, 4 VP.";
-            case ProgressToken::URBANISM: return "6 Coins immediately, 4 Coins per chain.";
-            case ProgressToken::STRATEGY: return "Extra shield on military buildings.";
-            case ProgressToken::THEOLOGY: return "Wonders grant Play Again.";
-            case ProgressToken::ECONOMY: return "Opponent pays you for trade.";
-            case ProgressToken::MASONRY: return "Blue cards cost -2 resources.";
-            case ProgressToken::ARCHITECTURE: return "Wonders cost -2 resources.";
-            case ProgressToken::LAW: return "Science Symbol (Law).";
-            case ProgressToken::MATHEMATICS: return "3 VP per Progress Token.";
-            case ProgressToken::PHILOSOPHY: return "7 VP.";
-            default: return "";
-        }
-    }
-
-    std::string getTypeStr(CardType t) {
-        switch(t) {
-            case CardType::RAW_MATERIAL: return "\033[33mBrown\033[0m";
-            case CardType::MANUFACTURED: return "\033[37mGrey\033[0m";
-            case CardType::CIVILIAN: return "\033[34mBlue\033[0m";
-            case CardType::SCIENTIFIC: return "\033[32mGreen\033[0m";
-            case CardType::COMMERCIAL: return "\033[33mYellow\033[0m";
-            case CardType::MILITARY: return "\033[31mRed\033[0m";
-            case CardType::GUILD: return "\033[35mPurple\033[0m";
-            default: return "Unknown";
-        }
-    }
-
-    std::string resourceName(ResourceType r) {
+    std::string GameView::resourceName(ResourceType r) {
         switch(r) {
-            case ResourceType::WOOD: return "Wood";
-            case ResourceType::STONE: return "Stone";
-            case ResourceType::CLAY: return "Clay";
-            case ResourceType::PAPER: return "Paper";
+            case ResourceType::WOOD: return "Wood"; case ResourceType::STONE: return "Stone";
+            case ResourceType::CLAY: return "Clay"; case ResourceType::PAPER: return "Paper";
             case ResourceType::GLASS: return "Glass";
-        }
-        return "";
+        } return "?";
     }
 
-    std::string getScienceSymbolName(ScienceSymbol s) {
-        switch(s) {
-            case ScienceSymbol::GLOBE: return "Globe";
-            case ScienceSymbol::TABLET: return "Tablet";
-            case ScienceSymbol::MORTAR: return "Mortar";
-            case ScienceSymbol::COMPASS: return "Compass";
-            case ScienceSymbol::WHEEL: return "Wheel";
-            case ScienceSymbol::QUILL: return "Quill";
-            case ScienceSymbol::LAW: return "Law";
-            default: return "";
-        }
-    }
-
-    std::string formatResFull(const Player& p) {
+    std::string GameView::formatCost(const ResourceCost& cost) {
         std::stringstream ss;
-        std::vector<ResourceType> types = {ResourceType::WOOD, ResourceType::STONE, ResourceType::CLAY, ResourceType::PAPER, ResourceType::GLASS};
-        int count = 0;
-        for(size_t i=0; i<types.size(); ++i) {
-            int amt = 0;
-            if (p.fixedResources.count(types[i])) amt = p.fixedResources.at(types[i]);
-            ss << resourceName(types[i]) << ":" << amt << "  ";
-            count++;
-            if (count == 3) ss << "\n          ";
-        }
-        return ss.str();
+        if(cost.coins > 0) ss << "$" << cost.coins << " ";
+        for(auto [r,v]: cost.resources) { if(v>0) ss << v << resourceName(r).substr(0,1) << " "; }
+        std::string s = ss.str(); return s.empty() ? "Free" : s;
     }
 
-    std::string formatCost(const ResourceCost& cost) {
+    std::string GameView::formatResourcesCompact(const Player& p) {
         std::stringstream ss;
-        if(cost.coins > 0) ss << cost.coins << "$ ";
-        for(auto [r,v]: cost.resources) {
-            if(v>0) ss << v << resourceName(r) << " ";
-        }
-        if(ss.str().empty()) return "Free";
-        return ss.str();
-    }
+        ss << "W:" << p.fixedResources.at(ResourceType::WOOD) << " ";
+        ss << "C:" << p.fixedResources.at(ResourceType::CLAY) << " ";
+        ss << "S:" << p.fixedResources.at(ResourceType::STONE) << " ";
+        ss << "G:" << p.fixedResources.at(ResourceType::GLASS) << " ";
+        ss << "P:" << p.fixedResources.at(ResourceType::PAPER);
 
-    // --- 详情渲染 ---
-
-    void GameView::renderCardDetail(const Card& c) {
-        printLine('-');
-        std::cout << " [CARD] " << c.name << " (" << getTypeStr(c.type) << ")\n";
-        printLine('-');
-        std::cout << " Age: " << c.age << "\n";
-        std::cout << " Cost: " << formatCost(c.cost) << "\n";
-        std::cout << " Effects: ";
-        for(auto& eff : c.effects) std::cout << eff->getDescription() << " ";
-        std::cout << "\n";
-        if(!c.chainTag.empty()) std::cout << " Chain Provided: " << c.chainTag << "\n";
-        if(!c.requiresChainTag.empty()) std::cout << " Chain Required: " << c.requiresChainTag << "\n";
-        printLine('-');
-    }
-
-    void GameView::renderWonderDetail(const Wonder& w) {
-        printLine('-');
-        std::cout << " [WONDER] " << w.name << "\n";
-        printLine('-');
-        std::cout << " Cost: " << formatCost(w.cost) << "\n";
-        std::cout << " Effects: ";
-        for(auto& eff : w.effects) std::cout << eff->getDescription() << " ";
-        std::cout << "\n";
-        printLine('-');
-    }
-
-    void GameView::renderTokenDetail(ProgressToken t) {
-        printLine('-');
-        std::cout << " [TOKEN] " << getTokenName(t) << "\n";
-        printLine('-');
-        std::cout << " Effect: " << getTokenDesc(t) << "\n";
-        printLine('-');
-    }
-
-    // --- 核心：详细玩家信息页面 ---
-
-    void GameView::renderPlayerDetailFull(const Player& p, const Player& opp) {
-        clearScreen();
-        renderHeader("PLAYER DETAIL: " + p.name);
-
-        // 1. 基础状态
-        std::cout << "Coins: " << p.coins << "\n";
-        std::cout << "Resources: " << formatResFull(p) << "\n\n";
-
-        // 2. 正面效果 (Buffs)
-        std::cout << "=== ACTIVE BUFFS ===\n";
-        // 发展标记
-        if (p.progressTokens.empty() && p.scienceSymbols.empty() && p.tradingDiscounts.empty()) {
-            std::cout << "  (None)\n";
-        } else {
-            for(auto t : p.progressTokens) {
-                std::cout << "  [Token] " << getTokenName(t) << ": " << getTokenDesc(t) << "\n";
-            }
-            for(auto [s, c] : p.scienceSymbols) {
-                if(c > 0 && s != ScienceSymbol::NONE)
-                    std::cout << "  [Science] " << getScienceSymbolName(s) << " x" << c << "\n";
-            }
-            for(auto [r, has] : p.tradingDiscounts) {
-                if(has) std::cout << "  [Trade] Fixed cost 1 for " << resourceName(r) << "\n";
-            }
-        }
-        std::cout << "\n";
-
-        // 3. 建筑列表 (按颜色分类)
-        std::cout << "=== BUILT CARDS ===\n";
-        if (p.builtCards.empty()) {
-            std::cout << "  (No buildings)\n";
-        } else {
-            // 简单排序：按类型
-            std::vector<Card*> sorted = p.builtCards;
-            std::sort(sorted.begin(), sorted.end(), [](Card* a, Card* b){
-                return a->type < b->type;
-            });
-
-            CardType lastType = static_cast<CardType>(-1);
-            for(auto c : sorted) {
-                if (c->type != lastType) {
-                    std::cout << "  " << getTypeStr(c->type) << ":\n";
-                    lastType = c->type;
+        if (!p.choiceResources.empty()) {
+            ss << " \033[93m+";
+            for (const auto& choices : p.choiceResources) {
+                ss << "(";
+                for (size_t i = 0; i < choices.size(); ++i) {
+                    if (i > 0) ss << "/";
+                    ss << resourceName(choices[i]).substr(0,1);
                 }
-                std::cout << "    - " << std::left << std::setw(20) << c->name << " ";
-                for(auto& e : c->effects) std::cout << "[" << e->getDescription() << "] ";
-                std::cout << "\n";
+                ss << ")";
             }
+            ss << "\033[0m";
         }
-        std::cout << "\n";
-
-        // 4. 奇迹
-        std::cout << "=== WONDERS ===\n";
-        for(auto w : p.builtWonders) std::cout << "  [Built] " << w->name << "\n";
-        for(auto w : p.unbuiltWonders) std::cout << "  [Wait]  " << w->name << "\n";
-        std::cout << "\n";
-
-        // 5. 计分板 (近似计算)
-        // 注意：getScore 包含所有分。这里我们手动列出构成。
-        int total = p.getScore(opp);
-        int coinPoints = p.coins / 3;
-        // 简单显示
-        std::cout << "=== SCORE BREAKDOWN ===\n";
-        std::cout << "  Coins (" << p.coins << "/3): " << coinPoints << " VP\n";
-        std::cout << "  Buildings/Wonders/Tokens: " << (total - coinPoints) << " VP\n";
-        std::cout << "  -------------------------\n";
-        std::cout << "  TOTAL: " << total << " VP\n";
-
-        std::cout << "\n(Press Enter to return)";
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cin.get();
+        return ss.str();
     }
 
-    // --- 主游戏界面 ---
+    std::string formatScienceSymbols(const Player& p) {
+        std::stringstream ss;
+        bool hasAny = false;
+        for (auto const& [sym, count] : p.scienceSymbols) {
+            if (sym == ScienceSymbol::NONE || count == 0) continue;
+            hasAny = true;
+            std::string sName;
+            switch(sym) {
+                case ScienceSymbol::GLOBE: sName="Globe"; break;
+                case ScienceSymbol::TABLET: sName="Tablet"; break;
+                case ScienceSymbol::MORTAR: sName="Mortar"; break;
+                case ScienceSymbol::COMPASS: sName="Compass"; break;
+                case ScienceSymbol::WHEEL: sName="Wheel"; break;
+                case ScienceSymbol::QUILL: sName="Quill"; break;
+                case ScienceSymbol::LAW: sName="Law"; break;
+                default: sName="?"; break;
+            }
+            ss << "\033[32m[" << sName << "]\033[0m ";
+        }
+        return ss.str();
+    }
 
-    void renderPlayerBox(const Player& p, bool isCurrent, const Player& opp) {
-        std::string border = "-------------------------------------------------------------------------";
-        std::string title = "【" + p.name + (isCurrent ? " (Turn)" : "") + "】";
+    // ==========================================================
+    //  主菜单渲染
+    // ==========================================================
 
-        // 计算“面板分数”：为了满足用户“初始0分”的需求，我们显示不含金币的分数，
-        // 或者直接显示 0 (如果是初始状态)。
-        // 逻辑：总分 - 金币分。
-        int rawScore = p.getScore(opp);
-        int coinScore = p.coins / 3;
-        int displayScore = rawScore - coinScore;
+    void GameView::renderMainMenu() {
+        clearScreen();
+        printLine('=', 80);
+        printCentered("\033[1;33m7   W O N D E R S    D U E L\033[0m");
+        printLine('=', 80);
+        printCentered("Please Select Game Mode:");
+        std::cout << "\n";
+        std::string indent(28, ' ');
+        std::cout << indent << "[1] Human vs Human\n";
+        std::cout << indent << "[2] Human vs AI (Recommended)\n";
+        std::cout << indent << "[3] AI vs AI (Watch Mode)\n";
+        std::cout << indent << "[4] Quit Game\n";
+        printLine('=', 80);
+        std::cout << "  Input > ";
+    }
 
-        std::cout << "┌" << border << "┐\n";
-        std::cout << "  " << std::left << std::setw(50) << title
-                  << "VP (Excl. Coins): " << displayScore << "\n";
+    // ==========================================================
+    //  子模块渲染
+    // ==========================================================
 
-        std::cout << "  Coins: " << std::left << std::setw(5) << p.coins << "  ";
-        std::cout << formatResFull(p) << "\n";
+    void GameView::renderMilitaryTrack(const Board& board) {
+        int pos = board.militaryTrack.position;
+        std::stringstream ss;
+        ss << "        P1  ";
+        for (int i = -9; i <= 9; ++i) {
+            if (i == pos) ss << "\033[1;31m@\033[0m ";
+            else if (i == 0) ss << "| ";
+            else ss << "- ";
+        }
+        ss << " P2";
+        std::cout << ss.str() << "\n";
+        std::cout << "            "
+                  << (board.militaryTrack.lootTokens[1] ? "[$ 5] " : "      ")
+                  << (board.militaryTrack.lootTokens[0] ? "[$ 2]" : "     ")
+                  << "               "
+                  << (board.militaryTrack.lootTokens[2] ? "[$ 2] " : "      ")
+                  << (board.militaryTrack.lootTokens[3] ? "[$ 5]" : "     ") << "\n";
+    }
 
-        std::cout << "  Science: ";
-        for(auto [s, c] : p.scienceSymbols) {
-            if(c > 0 && s != ScienceSymbol::NONE)
-                std::cout << getScienceSymbolName(s) << " ";
+    void GameView::renderProgressTokens(const std::vector<ProgressToken>& tokens, bool isBoxContext) {
+        if (!isBoxContext) ctx.tokenIdMap.clear();
+        else ctx.boxTokenIdMap.clear();
+
+        if (tokens.empty()) { std::cout << "[TOKENS] (Empty)\n"; return; }
+
+        std::cout << (isBoxContext ? "[BOX TOKENS] " : "[TOKENS] ");
+        for (size_t i = 0; i < tokens.size(); ++i) {
+            int displayId = i + 1;
+            if (isBoxContext) ctx.boxTokenIdMap[displayId] = tokens[i];
+            else ctx.tokenIdMap[displayId] = tokens[i];
+
+            std::cout << "\033[32m[S" << displayId << "]" << getTokenName(tokens[i]) << "\033[0m  ";
         }
         std::cout << "\n";
+    }
 
-        std::cout << "  Wonders: \n";
-        int wCnt = 0;
+    void GameView::renderHeader(const GameModel& model) {
+        std::stringstream ss;
+        ss << "[ 7 WONDERS DUEL - AGE " << model.currentAge << " ]";
+        printLine('=');
+        printCentered("\033[1;37m" + ss.str() + "\033[0m");
+        renderMilitaryTrack(*model.board);
+        renderProgressTokens(model.board->availableProgressTokens, false);
+        printLine('-');
+    }
+
+    void GameView::renderPlayerDashboard(const Player& p, bool isCurrent, const Player& opp, int& wonderCounter, bool targetMode) {
+        std::string nameTag = isCurrent ? ("\033[1;36m[" + p.name + "]\033[0m") : ("[" + p.name + "]");
+        if (targetMode) nameTag = "\033[1;31m[TARGET: " + p.name + "]\033[0m";
+
+        int displayVP = p.getScore(opp) - (p.coins/3);
+
+        std::cout << nameTag
+                  << " Coin:\033[33m" << p.coins << "\033[0m"
+                  << " VP:\033[36m" << displayVP << "\033[0m "
+                  << formatResourcesCompact(p) << "\n";
+
+        std::string scienceStr = formatScienceSymbols(p);
+        if (!scienceStr.empty()) {
+            std::cout << "Science: " << scienceStr << "\n";
+        }
+
+        std::cout << "Wonder: ";
         for(auto w : p.builtWonders) {
-            std::cout << "    [V] " << std::left << std::setw(25) << w->name;
-            if(++wCnt % 2 == 0) std::cout << "\n";
+            int currentId = wonderCounter++;
+            ctx.wonderIdMap[currentId] = w->id;
+            std::cout << "\033[32m[W" << currentId << "][X]" << w->name << "\033[0m  ";
         }
         for(auto w : p.unbuiltWonders) {
-            std::cout << "    [ ] " << std::left << std::setw(25) << w->name;
-            if(++wCnt % 2 == 0) std::cout << "\n";
+            int currentId = wonderCounter++;
+            ctx.wonderIdMap[currentId] = w->id;
+            std::cout << "[W" << currentId << "][ ]" << w->name << "  ";
         }
         std::cout << "\n";
-        std::cout << "└" << border << "┘\n";
-    }
 
-    void GameView::renderGame(const GameModel& model) {
-        clearScreen();
-
-        std::string ageInfo = "7 WONDERS DUEL - Age " + std::to_string(model.currentAge);
-        int remCards = model.getRemainingCardCount();
-        std::cout << std::string(80, '=') << "\n";
-        std::cout << "  " << std::left << std::setw(40) << ageInfo << "Remaining Cards: " << remCards << "\n";
-        std::cout << std::string(80, '=') << "\n\n";
-
-        // Military
-        int pos = model.board->militaryTrack.position;
-        std::cout << "[MILITARY]  P1 ";
-        for(int i=-9; i<=9; ++i) {
-            if (i == pos) std::cout << "O";
-            else if (i==0) std::cout << "|";
-            else std::cout << "-";
-        }
-        std::cout << " P2  (Val: " << pos << ")\n";
-
-        // Tokens (Name Only)
-        std::cout << "[TOKENS]    ";
-        for(auto t : model.board->availableProgressTokens) {
-            std::cout << "[" << getTokenName(t) << "] ";
-        }
-        std::cout << "\n\n";
-
-        // Players
-        renderPlayerBox(*model.players[0], model.currentPlayerIndex == 0, *model.players[1]);
-        renderPlayerBox(*model.players[1], model.currentPlayerIndex == 1, *model.players[0]);
-
-        std::cout << std::string(80, '=') << "\n";
-
-        // Logs
-        if (!model.gameLog.empty()) {
-            size_t start = model.gameLog.size() > 3 ? model.gameLog.size() - 3 : 0;
-            for (size_t i = start; i < model.gameLog.size(); ++i) {
-                std::cout << " > " << model.gameLog[i] << "\n";
-            }
-        }
-    }
-
-    // --- 字符串查找辅助 ---
-    int findMatch(const std::vector<std::string>& names, const std::string& query) {
-        std::string q = query;
-        std::transform(q.begin(), q.end(), q.begin(), ::tolower);
-
-        // Exact
-        for(size_t i=0; i<names.size(); ++i) {
-            std::string n = names[i];
-            std::transform(n.begin(), n.end(), n.begin(), ::tolower);
-            if (n == q) return i;
-        }
-        // Partial
-        for(size_t i=0; i<names.size(); ++i) {
-            std::string n = names[i];
-            std::transform(n.begin(), n.end(), n.begin(), ::tolower);
-            if (n.find(q) != std::string::npos) return i;
-        }
-        return -1;
-    }
-
-    Action GameView::promptHumanAction(const GameModel& model) {
-        renderGame(model);
-
-        Action act;
-        act.type = static_cast<ActionType>(-1);
-
-        // 1. 轮抽
-        if (model.currentAge == 0) {
-            std::cout << "\n--- WONDER DRAFT ---\n";
+        if (targetMode) {
+            ctx.oppCardIdMap.clear();
+            std::cout << "Built Cards (Select to Destroy): \n";
             int idx = 1;
-            for(auto w : model.draftPool) {
-                std::cout << "[" << idx++ << "] " << w->name << "\n";
+            for(auto c : p.builtCards) {
+                std::string idStr = "T" + std::to_string(idx);
+                ctx.oppCardIdMap[idx] = c->id;
+
+                std::cout << "  [" << idStr << "] " << getTypeStr(c->type) << " " << c->name;
+                if (idx % 3 == 0) std::cout << "\n";
+                idx++;
             }
-            std::cout << "Enter number [1-4]: ";
-            int c; std::cin >> c;
-            if (c >= 1 && c <= model.draftPool.size()) {
-                act.type = ActionType::DRAFT_WONDER;
-                act.targetWonderId = model.draftPool[c-1]->id;
-            }
-            return act;
-        }
-
-        // 2. 主流程
-        std::cout << "\n[" << model.getCurrentPlayer()->name << "]'s Turn - Available Cards:\n";
-        auto avail = model.board->cardStructure.getAvailableCards();
-        std::vector<Card*> visibleCards;
-        std::vector<std::string> visibleNames;
-
-        int idx = 1;
-        for (auto slot : avail) {
-            if (!slot->cardPtr) continue;
-            Card* c = slot->cardPtr;
-            visibleCards.push_back(c);
-            visibleNames.push_back(c->name);
-
-            std::cout << "[" << idx++ << "] " << std::left << std::setw(15) << c->name
-                      << std::setw(8) << getTypeStr(c->type)
-                      << " Cost: " << formatCost(c->cost) << " => ";
-            for(auto& eff : c->effects) std::cout << eff->getDescription() << " ";
             std::cout << "\n";
         }
 
-        std::cout << "\nCommands:\n";
-        std::cout << "  build [name]        - Build card\n";
-        std::cout << "  discard [name]      - Sell card\n";
-        std::cout << "  wonder [card] [wdr] - Build wonder\n";
-        std::cout << "  query [name]        - View Info\n";
-        std::cout << "  detail [1/2]        - View player details\n";
-        std::cout << "  log                 - View full log\n";
-        std::cout << "> ";
-
-        std::string line;
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::getline(std::cin, line);
-
-        std::stringstream ss(line);
-        std::string cmd;
-        ss >> cmd;
-
-        std::string remainder;
-        std::getline(ss, remainder);
-        size_t first = remainder.find_first_not_of(' ');
-        if (std::string::npos != first) remainder = remainder.substr(first);
-
-        if (cmd == "build" || cmd == "discard") {
-            int matchIdx = findMatch(visibleNames, remainder);
-            if (matchIdx != -1) {
-                act.type = (cmd == "build") ? ActionType::BUILD_CARD : ActionType::DISCARD_FOR_COINS;
-                act.targetCardId = visibleCards[matchIdx]->id;
-            } else {
-                std::cout << "Card not found: " << remainder << "\n(Press Enter)";
-                std::cin.get();
-            }
-        }
-        else if (cmd == "query") {
-            bool found = false;
-            // Search Tokens
-            std::vector<ProgressToken> allTokens = {
-                ProgressToken::AGRICULTURE, ProgressToken::URBANISM, ProgressToken::STRATEGY,
-                ProgressToken::THEOLOGY, ProgressToken::ECONOMY, ProgressToken::MASONRY,
-                ProgressToken::ARCHITECTURE, ProgressToken::LAW, ProgressToken::MATHEMATICS,
-                ProgressToken::PHILOSOPHY
-            };
-            for(auto t : allTokens) {
-                std::string tName = getTokenName(t);
-                if(findMatch({tName}, remainder) != -1) {
-                    clearScreen(); renderTokenDetail(t); found = true; break;
-                }
-            }
-            // Search Wonders
-            if (!found) {
-                for(const auto& w : model.allWonders) {
-                    if(findMatch({w.name}, remainder) != -1) {
-                        clearScreen(); renderWonderDetail(w); found = true; break;
-                    }
-                }
-            }
-            // Search Cards
-            if (!found) {
-                for(const auto& c : model.allCards) {
-                    if(findMatch({c.name}, remainder) != -1) {
-                        clearScreen(); renderCardDetail(c); found = true; break;
-                    }
-                }
-            }
-            if(!found) std::cout << "No matching Card, Wonder or Token found.\n";
-            std::cout << "(Press Enter)"; std::cin.get();
-        }
-        else if (cmd == "wonder") {
-            // Interactive mode for ease
-            std::cout << "Enter Material Card Name: ";
-            std::string cName; std::getline(std::cin, cName);
-            int cIdx = findMatch(visibleNames, cName);
-
-            if (cIdx != -1) {
-                std::cout << "Enter Wonder Name: ";
-                std::string wName; std::getline(std::cin, wName);
-
-                auto& unbuilt = model.getCurrentPlayer()->unbuiltWonders;
-                std::vector<std::string> wNames;
-                for(auto w : unbuilt) wNames.push_back(w->name);
-
-                int wIdx = findMatch(wNames, wName);
-                if (wIdx != -1) {
-                    act.type = ActionType::BUILD_WONDER;
-                    act.targetCardId = visibleCards[cIdx]->id;
-                    act.targetWonderId = unbuilt[wIdx]->id;
-                } else { std::cout << "Wonder not found.\n(Press Enter)"; std::cin.get(); }
-            } else { std::cout << "Card not found.\n(Press Enter)"; std::cin.get(); }
-        }
-        else if (cmd == "detail") {
-            if (remainder == "1") {
-                renderPlayerDetailFull(*model.players[0], *model.players[1]);
-            } else if (remainder == "2") {
-                renderPlayerDetailFull(*model.players[1], *model.players[0]);
-            }
-        }
-        else if (cmd == "log") {
-            clearScreen();
-            std::cout << "FULL LOG:\n";
-            for(auto& l : model.gameLog) std::cout << l << "\n";
-            std::cout << "\n(Press Enter)"; std::cin.get();
-        }
-
-        return act;
+        printLine('-');
     }
 
-    // 占位
-    void GameView::renderMainMenu() { clearScreen(); std::cout<<"MENU...\n"; }
-    void GameView::printMessage(const std::string& msg) { std::cout << msg << "\n"; }
-    void GameView::printError(const std::string& msg) { std::cout << "ERR: " << msg << "\n"; }
-    void GameView::printTurnInfo(const Player* p) {}
-    std::string GameView::getCardColorCode(CardType t) { return getTypeStr(t); }
-    std::string GameView::resourceToString(ResourceType r) { return ""; }
-    void GameView::renderPlayer(const Player& p, bool) {}
-    void GameView::renderBoard(const GameModel& m) {}
+    void GameView::renderPyramid(const GameModel& model) {
+        std::cout << "           PYRAMID (" << model.getRemainingCardCount() << ") | DISCARD (" << model.board->discardPile.size() << ")\n";
+
+        const auto& slots = model.board->cardStructure.slots;
+        if (slots.empty()) return;
+
+        ctx.cardIdMap.clear();
+
+        std::map<int, std::vector<const CardSlot*>> rows;
+        int maxRow = 0;
+        for (const auto& slot : slots) {
+            rows[slot.row].push_back(&slot);
+            if (slot.row > maxRow) maxRow = slot.row;
+        }
+
+        for (int r = 0; r <= maxRow; ++r) {
+            const auto& rowSlots = rows[r];
+            if (rowSlots.empty()) continue;
+
+            int cardWidth = 11;
+            int rowLen = rowSlots.size() * cardWidth;
+
+            bool isAge3SplitRow = (model.currentAge == 3 && r == 3);
+            if (isAge3SplitRow) {
+                rowLen += cardWidth;
+            }
+
+            int padding = (80 - rowLen) / 2;
+            std::cout << std::string(std::max(0, padding), ' ');
+
+            for (size_t i = 0; i < rowSlots.size(); ++i) {
+                const auto* slot = rowSlots[i];
+                int absIndex = (&(*slot) - &slots[0]) + 1;
+
+                if (slot->isRemoved) std::cout << "           ";
+                else if (!slot->isFaceUp) std::cout << " [\033[90m ? ? ? \033[0m] ";
+                else {
+                    Card* c = slot->cardPtr;
+                    ctx.cardIdMap[absIndex] = c->id;
+                    std::string label = " C" + std::to_string(absIndex) + " ";
+                    while(label.length() < 7) label += " ";
+                    std::cout << " [" << getCardColorCode(c->type) << label << getResetColor() << "] ";
+                }
+
+                if (isAge3SplitRow && i == 0) {
+                    std::cout << "           ";
+                }
+            }
+            std::cout << "\n";
+        }
+        printLine('-');
+    }
+
+    void GameView::renderActionLog(const std::vector<std::string>& log) {
+        std::cout << " [LAST ACTION]\n";
+        size_t count = std::min((size_t)2, log.size());
+        for (size_t i = 0; i < count; ++i) std::cout << " > " << log[log.size() - count + i] << "\n";
+        printLine('=');
+    }
+
+    void GameView::renderErrorMessage() {
+        if (!m_lastError.empty()) std::cout << "\033[1;31m [!] " << m_lastError << "\033[0m\n";
+    }
+
+    void GameView::renderCommandHelp(GameState state) {
+        std::cout << " [CMD] ";
+        switch (state) {
+            case GameState::WONDER_DRAFT_PHASE_1:
+            case GameState::WONDER_DRAFT_PHASE_2:
+                std::cout << "pick <ID>, detail <1/2>\n";
+                break;
+            case GameState::WAITING_FOR_TOKEN_SELECTION_PAIR:
+            case GameState::WAITING_FOR_TOKEN_SELECTION_LIB:
+                std::cout << "select <ID> (e.g. select S1), info <ID>\n";
+                break;
+            case GameState::WAITING_FOR_DESTRUCTION:
+                std::cout << "destroy <ID> (e.g. destroy T1), skip\n";
+                break;
+            case GameState::WAITING_FOR_DISCARD_BUILD:
+                std::cout << "resurrect <ID> (e.g. resurrect D1)\n";
+                break;
+            case GameState::WAITING_FOR_START_PLAYER_SELECTION:
+                std::cout << "choose me, choose opponent\n";
+                break;
+            default:
+                std::cout << "build/discard <CID>, wonder <CID> <WID>, detail <1/2>, pile\n";
+                break;
+        }
+    }
+
+    // ==========================================================
+    //  特殊状态渲染
+    // ==========================================================
+
+    void GameView::renderDraftPhase(const GameModel& model) {
+        clearScreen();
+        printLine('='); printCentered("\033[1;36mWONDER DRAFT\033[0m"); printLine('=');
+        const Player* p = model.getCurrentPlayer();
+        std::cout << "  \033[1;33m[" << p->name << "]\033[0m Choose a Wonder:\n";
+
+        ctx.draftWonderIds.clear();
+        int idx = 1;
+        for (const auto& w : model.draftPool) {
+            ctx.draftWonderIds.push_back(w->id);
+            std::cout << "  [" << idx << "] \033[1;37m" << std::left << std::setw(20) << w->name << "\033[0m";
+            std::cout << " Cost: " << formatCost(w->cost) << " ";
+            std::cout << " Eff: "; for(auto& eff : w->effects) std::cout << eff->getDescription() << " ";
+            std::cout << "\n";
+            idx++;
+        }
+        printLine('-');
+        renderActionLog(model.gameLog);
+        renderErrorMessage();
+        renderCommandHelp(model.currentPlayerIndex == 0 ? GameState::WONDER_DRAFT_PHASE_1 : GameState::WONDER_DRAFT_PHASE_1);
+    }
+
+    void GameView::renderTokenSelection(const GameModel& model, bool fromBox) {
+        clearScreen();
+        printLine('='); printCentered("\033[1;36mSELECT PROGRESS TOKEN\033[0m"); printLine('=');
+
+        if (fromBox) {
+            std::cout << "  Source: \033[33mGame Box (Library Effect)\033[0m\n";
+            renderProgressTokens(model.board->boxProgressTokens, true); // true = box context
+        } else {
+            std::cout << "  Source: \033[33mBoard (Science Pair)\033[0m\n";
+            renderProgressTokens(model.board->availableProgressTokens, false);
+        }
+        printLine('-');
+
+        // [Update] 增加日志显示，这样玩家知道为什么触发了选择
+        renderActionLog(model.gameLog);
+
+        renderErrorMessage();
+        renderCommandHelp(fromBox ? GameState::WAITING_FOR_TOKEN_SELECTION_LIB : GameState::WAITING_FOR_TOKEN_SELECTION_PAIR);
+    }
+
+    void GameView::renderDestructionPhase(const GameModel& model) {
+        clearScreen();
+        printLine('='); printCentered("\033[1;31mDESTROY OPPONENT CARD\033[0m"); printLine('=');
+
+        int wCounter = 1;
+        renderPlayerDashboard(*model.getOpponent(), false, *model.getCurrentPlayer(), wCounter, true);
+
+        renderErrorMessage();
+        renderCommandHelp(GameState::WAITING_FOR_DESTRUCTION);
+    }
+
+    void GameView::renderDiscardBuildPhase(const GameModel& model) {
+        clearScreen();
+        printLine('='); printCentered("\033[1;35mMAUSOLEUM: RESURRECT CARD\033[0m"); printLine('=');
+
+        const auto& pile = model.board->discardPile;
+        ctx.discardIdMap.clear();
+        int idx = 1;
+
+        if (pile.empty()) std::cout << "  (Discard pile is empty)\n";
+
+        for(auto c : pile) {
+            ctx.discardIdMap[idx] = c->id;
+            std::cout << "  [D" << idx++ << "] " << c->name << " (" << getTypeStr(c->type) << ")\n";
+        }
+        printLine('-');
+        renderErrorMessage();
+        renderCommandHelp(GameState::WAITING_FOR_DISCARD_BUILD);
+    }
+
+    void GameView::renderStartPlayerSelect(const GameModel& model) {
+        clearScreen();
+        printLine('='); printCentered("CHOOSE STARTING PLAYER"); printLine('=');
+        std::cout << "  \033[1;33m[" << model.getCurrentPlayer()->name << "]\033[0m decides who starts the next Age.\n";
+        std::cout << "  (Decision based on military strength or last played turn)\n\n";
+        std::cout << "  Available Commands:\n";
+        std::cout << "  > \033[32mchoose me\033[0m        (You take the first turn)\n";
+        std::cout << "  > \033[32mchoose opponent\033[0m  (" << model.getOpponent()->name << " takes the first turn)\n";
+        printLine('-');
+        renderErrorMessage();
+        // 修改 help 提示，不显示
+        std::cout << " [CMD] Input command directly above.\n";
+    }
+
+    // ==========================================================
+    //  主入口：renderGame 统一分发
+    // ==========================================================
+
+    void GameView::renderGame(const GameModel& model, GameState state) {
+        ctx.wonderIdMap.clear();
+        ctx.cardIdMap.clear();
+        ctx.tokenIdMap.clear();
+        ctx.boxTokenIdMap.clear();
+        ctx.oppCardIdMap.clear();
+        ctx.discardIdMap.clear();
+        int wonderCounter = 1;
+
+        switch (state) {
+            case GameState::WONDER_DRAFT_PHASE_1:
+            case GameState::WONDER_DRAFT_PHASE_2:
+                renderDraftPhase(model);
+                break;
+            case GameState::WAITING_FOR_TOKEN_SELECTION_PAIR:
+                renderTokenSelection(model, false);
+                break;
+            case GameState::WAITING_FOR_TOKEN_SELECTION_LIB:
+                renderTokenSelection(model, true);
+                break;
+            case GameState::WAITING_FOR_DESTRUCTION:
+                renderDestructionPhase(model);
+                break;
+            case GameState::WAITING_FOR_DISCARD_BUILD:
+                renderDiscardBuildPhase(model);
+                break;
+            case GameState::WAITING_FOR_START_PLAYER_SELECTION:
+                renderStartPlayerSelect(model);
+                break;
+            default: // AGE_PLAY_PHASE or GAME_OVER
+                clearScreen();
+                renderHeader(model);
+                renderPlayerDashboard(*model.players[0], model.currentPlayerIndex == 0, *model.players[1], wonderCounter);
+                renderPyramid(model);
+                renderPlayerDashboard(*model.players[1], model.currentPlayerIndex == 1, *model.players[0], wonderCounter);
+                renderActionLog(model.gameLog);
+                renderErrorMessage();
+                renderCommandHelp(state);
+                break;
+        }
+    }
+
+    void GameView::renderGameForAI(const GameModel& model, GameState state) {
+        renderGame(model, state);
+    }
+
+    // ==========================================================
+    //  详情页 (View Only Screens)
+    // ==========================================================
+
+    void GameView::renderPlayerDetailFull(const Player& p, const Player& opp) {
+        clearScreen();
+        printLine('='); printCentered("DETAIL: " + p.name);
+
+        int discardValue = 2 + p.getCardCount(CardType::COMMERCIAL);
+
+        std::cout << " [1] BASIC: Coins " << p.coins << " | VP " << p.getScore(opp) << "\n";
+        std::cout << "     \033[33mDiscard Value: " << discardValue << " coins\033[0m\n";
+
+        std::cout << " [2] RESOURCES: " << formatResourcesCompact(p) << "\n";
+        std::cout << "     Buy Costs (W/C/S/G/P): ";
+        std::vector<ResourceType> types = {ResourceType::WOOD, ResourceType::CLAY, ResourceType::STONE, ResourceType::GLASS, ResourceType::PAPER};
+        for (auto t : types) std::cout << p.getTradingPrice(t, opp) << "$ ";
+
+        std::cout << "\n [3] SCIENCE: ";
+        for(auto [s, c] : p.scienceSymbols) { if(c>0 && s!=ScienceSymbol::NONE) std::cout << "[" << (int)s << "]x" << c << " "; }
+        std::cout << "\n [4] WONDERS:\n";
+        for(auto w : p.builtWonders) std::cout << "     [Built] " << w->name << "\n";
+        for(auto w : p.unbuiltWonders) std::cout << "     [Plan ] " << w->name << "\n";
+        printLine('='); std::cout << " (Press Enter)"; std::cin.get();
+    }
+
+    void GameView::renderCardDetail(const Card& c) {
+        clearScreen(); printLine('='); printCentered("INFO: " + c.name);
+        std::cout << "  Type: " << getTypeStr(c.type) << " | Cost: " << formatCost(c.cost) << "\n";
+        std::cout << "  Eff: "; for(auto& eff : c.effects) std::cout << eff->getDescription() << " ";
+        std::cout << "\n";
+
+        if (!c.chainTag.empty()) std::cout << "  Provides Chain: \033[97m" << c.chainTag << "\033[0m\n";
+        if (!c.requiresChainTag.empty()) std::cout << "  Requires Chain: \033[97m" << c.requiresChainTag << "\033[0m\n";
+
+        printLine('='); std::cout << " (Press Enter)"; std::cin.get();
+    }
+
+    void GameView::renderWonderDetail(const Wonder& w) {
+        clearScreen(); printLine('='); printCentered("INFO: " + w.name);
+        std::cout << "  Cost: " << formatCost(w.cost) << "\n";
+        std::cout << "  Eff: "; for(auto& eff : w.effects) std::cout << eff->getDescription() << " ";
+        std::cout << "\n"; printLine('='); std::cout << " (Press Enter)"; std::cin.get();
+    }
+
+    void GameView::renderTokenDetail(ProgressToken t) {
+        clearScreen(); printLine('='); printCentered("TOKEN: " + getTokenName(t));
+        std::cout << "  (See Manual)\n";
+        printLine('='); std::cout << " (Press Enter)"; std::cin.get();
+    }
+
+    void GameView::renderDiscardPile(const std::vector<Card*>& pile) {
+        clearScreen(); printLine('='); printCentered("DISCARD PILE (" + std::to_string(pile.size()) + ")");
+        int idx = 1; for(auto c : pile) std::cout << "  [D" << idx++ << "] " << c->name << " (" << getTypeStr(c->type) << ")\n";
+        printLine('='); std::cout << " (Press Enter)"; std::cin.get();
+    }
+
+    void GameView::renderFullLog(const std::vector<std::string>& log) {
+        clearScreen(); printLine('='); printCentered("GAME LOG");
+        for(const auto& l : log) std::cout << " " << l << "\n";
+        printLine('='); std::cout << " (Press Enter)"; std::cin.get();
+    }
+
+    // ==========================================================
+    //  核心交互循环：promptHumanAction
+    // ==========================================================
+
+    Action GameView::promptHumanAction(const GameModel& model, GameState state) {
+        Action act;
+        act.type = static_cast<ActionType>(-1);
+
+        while (true) {
+            renderGame(model, state);
+
+            std::cout << "\n " << model.getCurrentPlayer()->name << " > ";
+
+            std::string line;
+            if (!std::getline(std::cin, line)) { act.type = ActionType::DISCARD_FOR_COINS; return act; }
+            if (line.empty()) continue;
+
+            clearLastError();
+            std::stringstream ss(line);
+            std::string cmd; ss >> cmd;
+            std::string arg1, arg2; ss >> arg1 >> arg2;
+
+            if (cmd == "log") { renderFullLog(model.gameLog); continue; }
+
+            if (cmd == "detail") {
+                int pIdx = -1;
+                if (arg1 == "1") pIdx = 0;
+                else if (arg1 == "2") pIdx = 1;
+
+                if (pIdx != -1) {
+                    renderPlayerDetailFull(*model.players[pIdx], *model.players[1-pIdx]);
+                } else {
+                    renderPlayerDetailFull(*model.getCurrentPlayer(), *model.getOpponent());
+                }
+                continue;
+            }
+
+            if (cmd == "info") {
+                int cId = parseId(arg1, 'C'); int wId = parseId(arg1, 'W'); int sId = parseId(arg1, 'S'); int tId = parseId(arg1, 'T'); int dId = parseId(arg1, 'D');
+
+                bool found = false;
+                if (!found && cId!=-1 && ctx.cardIdMap.count(cId)) {
+                    for(const auto& c : model.allCards) if(c.id == ctx.cardIdMap[cId]) { renderCardDetail(c); found=true; break; }
+                }
+                if (!found && wId!=-1 && ctx.wonderIdMap.count(wId)) {
+                    for(const auto& w : model.allWonders) if(w.id == ctx.wonderIdMap[wId]) { renderWonderDetail(w); found=true; break; }
+                }
+                if (!found && sId!=-1) {
+                    if (ctx.tokenIdMap.count(sId)) { renderTokenDetail(ctx.tokenIdMap[sId]); found=true; }
+                    else if (ctx.boxTokenIdMap.count(sId)) { renderTokenDetail(ctx.boxTokenIdMap[sId]); found=true; }
+                }
+                if (!found && tId!=-1 && ctx.oppCardIdMap.count(tId)) {
+                    for(const auto& c : model.allCards) if(c.id == ctx.oppCardIdMap[tId]) { renderCardDetail(c); found=true; break; }
+                }
+
+                if (!found) setLastError("ID not found or not visible in current context.");
+                continue;
+            }
+
+            if (state == GameState::WONDER_DRAFT_PHASE_1 || state == GameState::WONDER_DRAFT_PHASE_2) {
+                if (cmd == "pick") {
+                    int idx = parseId(arg1, ' ');
+                    if (idx >= 1 && idx <= (int)model.draftPool.size()) {
+                        act.type = ActionType::DRAFT_WONDER;
+                        act.targetWonderId = model.draftPool[idx-1]->id;
+                        return act;
+                    } else setLastError("Invalid index.");
+                } else setLastError("Use 'pick <N>'.");
+            }
+            else if (state == GameState::WAITING_FOR_TOKEN_SELECTION_PAIR || state == GameState::WAITING_FOR_TOKEN_SELECTION_LIB) {
+                bool isBox = (state == GameState::WAITING_FOR_TOKEN_SELECTION_LIB);
+                if (cmd == "select") {
+                    int id = parseId(arg1, 'S');
+                    auto& map = isBox ? ctx.boxTokenIdMap : ctx.tokenIdMap;
+                    if (map.count(id)) {
+                        act.type = ActionType::SELECT_PROGRESS_TOKEN;
+                        act.selectedToken = map[id];
+                        return act;
+                    } else setLastError("Invalid Token ID (S1, S2...).");
+                } else setLastError("Use 'select <ID>'.");
+            }
+            else if (state == GameState::WAITING_FOR_DESTRUCTION) {
+                if (cmd == "destroy") {
+                    int id = parseId(arg1, 'T');
+                    if (ctx.oppCardIdMap.count(id)) {
+                        act.type = ActionType::SELECT_DESTRUCTION;
+                        act.targetCardId = ctx.oppCardIdMap[id];
+                        return act;
+                    } else setLastError("Invalid Target ID (T1, T2...).");
+                }
+                else if (cmd == "skip") {
+                    act.type = ActionType::SELECT_DESTRUCTION;
+                    act.targetCardId = "";
+                    return act;
+                } else setLastError("Use 'destroy <ID>' or 'skip'.");
+            }
+            else if (state == GameState::WAITING_FOR_DISCARD_BUILD) {
+                if (cmd == "resurrect") {
+                    int id = parseId(arg1, 'D');
+                    if (ctx.discardIdMap.count(id)) {
+                        act.type = ActionType::SELECT_FROM_DISCARD;
+                        act.targetCardId = ctx.discardIdMap[id];
+                        return act;
+                    } else setLastError("Invalid Discard ID (D1...).");
+                } else setLastError("Use 'resurrect <ID>'.");
+            }
+            else if (state == GameState::WAITING_FOR_START_PLAYER_SELECTION) {
+                if (cmd == "choose") {
+                    if (arg1 == "me") {
+                        act.type = ActionType::CHOOSE_STARTING_PLAYER;
+                        act.targetCardId = "ME";
+                        return act;
+                    } else if (arg1 == "opponent" || arg1 == "opp") {
+                        act.type = ActionType::CHOOSE_STARTING_PLAYER;
+                        act.targetCardId = "OPPONENT";
+                        return act;
+                    } else setLastError("Choose 'me' or 'opponent'.");
+                } else setLastError("Use 'choose me' or 'choose opponent'.");
+            }
+            else {
+                if (cmd == "build" || cmd == "discard") {
+                    int id = parseId(arg1, 'C');
+                    if (ctx.cardIdMap.count(id)) {
+                        act.type = (cmd == "build") ? ActionType::BUILD_CARD : ActionType::DISCARD_FOR_COINS;
+                        act.targetCardId = ctx.cardIdMap[id];
+                        return act;
+                    } else setLastError("Invalid Card ID (C1...).");
+                }
+                else if (cmd == "wonder") {
+                    int cId = parseId(arg1, 'C');
+                    int wId = parseId(arg2, 'W');
+                    if (ctx.cardIdMap.count(cId) && ctx.wonderIdMap.count(wId)) {
+                        act.type = ActionType::BUILD_WONDER;
+                        act.targetCardId = ctx.cardIdMap[cId];
+                        act.targetWonderId = ctx.wonderIdMap[wId];
+                        return act;
+                    } else setLastError("Format: wonder C<ID> W<ID>");
+                }
+                else if (cmd == "pile") { renderDiscardPile(model.board->discardPile); }
+                else setLastError("Unknown command.");
+            }
+        }
+    }
 }

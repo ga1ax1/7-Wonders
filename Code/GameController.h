@@ -19,7 +19,7 @@ namespace SevenWondersDuel {
     // 动作参数结构体
     struct Action {
         ActionType type;
-        std::string targetCardId;   // 选中的金字塔卡牌 / 弃牌堆卡牌 / 对手卡牌
+        std::string targetCardId;   // 选中的金字塔卡牌 / 弃牌堆卡牌 / 对手卡牌 / 先手选择 "ME" or "OPPONENT"
         std::string targetWonderId; // 选中的手牌奇迹 (用于建造奇迹时)
         ProgressToken selectedToken = ProgressToken::NONE;
         ResourceType chosenResource = ResourceType::WOOD; // 用于极其罕见的多选一判定
@@ -105,11 +105,16 @@ namespace SevenWondersDuel {
 
         // --- 辅助逻辑 (公开给 Effects 使用) ---
 
+        void setPendingDestructionType(CardType t) { pendingDestructionType = t; }
+
         void setState(GameState newState) { currentState = newState; }
         Board* getBoard() { return model->board.get(); }
 
         // 触发再来一回合
         void grantExtraTurn() { extraTurnPending = true; }
+
+        // 核心修复：添加日志接口供 EffectSystem 使用
+        void addLog(const std::string& msg) { model->addLog(msg); }
 
     private:
         std::unique_ptr<GameModel> model;
@@ -117,7 +122,11 @@ namespace SevenWondersDuel {
 
         // 内部状态标记
         bool extraTurnPending = false;
+        int draftTurnCount = 0; // 记录轮抽阶段的进度 (0-3)
+
         std::mt19937 rng; // 随机数生成器
+
+        CardType pendingDestructionType = CardType::CIVILIAN; // 记录当前必须销毁的卡牌颜色
 
         // --- 内部流程方法 ---
 
@@ -125,18 +134,24 @@ namespace SevenWondersDuel {
 
         // 时代设置流程
         void setupAge(int age);
+        void prepareNextAge(); // 准备下一个时代 (处理先手选择逻辑)
+
         std::vector<Card*> prepareDeckForAge(int age);
 
         // 修正后的奇迹准备逻辑
         void initWondersDeck();
         void dealWondersToDraft();
 
-        // 切换玩家
+        // 切换玩家 / 回合结束处理
+        void onTurnEnd(); // 统一处理回合结束逻辑
         void switchPlayer();
 
         // 胜利检测
         void checkVictoryConditions();
         void resolveMilitaryLoot(const std::vector<int>& lootEvents);
+
+        // 检测是否有新凑成的科技对
+        bool checkForNewSciencePairs(Player* p);
 
         // 具体的动作处理器
         void handleDraftWonder(const Action& action);
@@ -145,6 +160,8 @@ namespace SevenWondersDuel {
         void handleBuildWonder(const Action& action);
         void handleSelectProgressToken(const Action& action);
         void handleDestruction(const Action& action);
+        void handleChooseStartingPlayer(const Action& action); // 新增：处理先手选择
+        void handleSelectFromDiscard(const Action& action); // [NEW] 处理弃牌堆选牌
 
         // 辅助：从ID查找对象
         Card* findCardInPyramid(const std::string& id);

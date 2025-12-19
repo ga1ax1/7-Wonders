@@ -90,7 +90,7 @@ namespace SevenWondersDuel {
 
             if (age == 1) {
                 // Age 1: 正金字塔 (2-3-4-5-6)
-                addSlot(0, 2, true, deck, cardIdx);  // Base (Top visual in reality, but Bottom logic here)
+                addSlot(0, 2, true, deck, cardIdx);
                 addSlot(1, 3, false, deck, cardIdx);
                 addSlot(2, 4, true, deck, cardIdx);
                 addSlot(3, 5, false, deck, cardIdx);
@@ -109,13 +109,16 @@ namespace SevenWondersDuel {
                 setupDependenciesAge2();
             }
             else if (age == 3) {
-                // Age 3: 这里的形状比较特殊 (Snake)，但在代码实现中为了稳定性，
-                // 我们复用 Age 1 的正金字塔结构 (2-3-4-5-6)，这保证了20张牌的逻辑完整性。
+                // Age 3: 蛇形结构 (20 cards)
+                // 结构 (从顶到底): 2(U) - 3(D) - 4(U) - 2(D) - 4(U) - 3(D) - 2(U)
+                // Row 3 (index) 是那行 Face Down 的 2 张卡
                 addSlot(0, 2, true, deck, cardIdx);
                 addSlot(1, 3, false, deck, cardIdx);
                 addSlot(2, 4, true, deck, cardIdx);
-                addSlot(3, 5, false, deck, cardIdx);
-                addSlot(4, 6, true, deck, cardIdx);
+                addSlot(3, 2, false, deck, cardIdx); // Row 4 (user index)
+                addSlot(4, 4, true, deck, cardIdx);
+                addSlot(5, 3, false, deck, cardIdx);
+                addSlot(6, 2, true, deck, cardIdx);  // Row 7 (user index), Initially Available
 
                 setupDependenciesAge3();
             }
@@ -148,7 +151,6 @@ namespace SevenWondersDuel {
             if (removedIdx == -1) return nullptr;
 
             // 更新依赖
-            // 我们需要找到所有 "coveredBy" 包含 removedIdx 的卡，把这个依赖去掉
             for (auto& s : slots) {
                 if (s.isRemoved) continue;
 
@@ -156,6 +158,7 @@ namespace SevenWondersDuel {
                 if (it != s.coveredBy.end()) {
                     s.coveredBy.erase(it, s.coveredBy.end());
 
+                    // [核心机制] 翻牌逻辑
                     if (s.coveredBy.empty() && !s.isFaceUp) {
                         s.isFaceUp = true;
                     }
@@ -178,12 +181,10 @@ namespace SevenWondersDuel {
             }
         }
 
-        // 辅助：获取在 slots 数组中的绝对索引
         int getAbsIndex(CardSlot* ptr) {
             return static_cast<int>(ptr - &slots[0]);
         }
 
-        // 辅助：获取某一行的所有指针
         std::vector<CardSlot*> getSlotsByRow(int r) {
             std::vector<CardSlot*> res;
             for (auto& s : slots) {
@@ -195,52 +196,100 @@ namespace SevenWondersDuel {
         // --- 核心拓扑实现 ---
 
         void setupDependenciesAge1() {
-            // 正金字塔逻辑: Row r 覆盖 Row r+1
-            // 上层 Row r (Index k) 覆盖了 下层 Row r+1 的 Index k 和 Index k+1
-            // 反过来说：下层 Lower[k] 被 Upper[k-1] 和 Upper[k] 压住
-
-            for (int r = 0; r < 4; ++r) { // 0 到 3行
+            // 正金字塔：Row r 被 Row r+1 遮挡
+            // 底部 (Row 4) 开放
+            for (int r = 0; r < 4; ++r) {
                 auto upper = getSlotsByRow(r);
                 auto lower = getSlotsByRow(r+1);
 
-                for (int k = 0; k < lower.size(); ++k) {
-                    // 左上方的卡 (Index k-1)
-                    if (k > 0 && (k-1) < upper.size()) {
-                        lower[k]->coveredBy.push_back(getAbsIndex(upper[k-1]));
-                    }
-                    // 正上方的卡 (Index k)
-                    if (k < upper.size()) {
-                        lower[k]->coveredBy.push_back(getAbsIndex(upper[k]));
-                    }
+                for (int k = 0; k < upper.size(); ++k) {
+                    if (k < lower.size()) upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
+                    if (k+1 < lower.size()) upper[k]->coveredBy.push_back(getAbsIndex(lower[k+1]));
                 }
             }
         }
 
         void setupDependenciesAge2() {
-            // 倒金字塔逻辑: Row r (长) 覆盖 Row r+1 (短)
-            // 上层 Row r (Index k, k+1) 覆盖 下层 Row r+1 (Index k)
-            // 反过来说：下层 Lower[k] 被 Upper[k] 和 Upper[k+1] 压住
+            // Age 2: 倒金字塔 (6-5-4-3-2)
+            // 逻辑要求：下层卡 (Row r+1, 窄) 压制 上层卡 (Row r, 宽)。
+            // 结果：Row 4 (2 cards) 完全开放，Row 0 (6 cards) 埋在最下面。
 
             for (int r = 0; r < 4; ++r) {
-                auto upper = getSlotsByRow(r);
-                auto lower = getSlotsByRow(r+1);
+                auto upper = getSlotsByRow(r);   // 宽层 (被遮挡)
+                auto lower = getSlotsByRow(r+1); // 窄层 (遮挡者)
 
                 for (int k = 0; k < lower.size(); ++k) {
-                    // Upper k
+                    // Upper[k] 被 Lower[k] 遮挡
                     if (k < upper.size()) {
-                        lower[k]->coveredBy.push_back(getAbsIndex(upper[k]));
+                        upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
                     }
-                    // Upper k+1
+                    // Upper[k+1] 被 Lower[k] 遮挡
                     if (k+1 < upper.size()) {
-                        lower[k]->coveredBy.push_back(getAbsIndex(upper[k+1]));
+                        upper[k+1]->coveredBy.push_back(getAbsIndex(lower[k]));
                     }
                 }
             }
         }
 
         void setupDependenciesAge3() {
-            // 复用 Age 1 的逻辑 (正金字塔)
-            setupDependenciesAge1();
+            // Age 3: 蛇形结构
+            // 结构：2(U)-3(D)-4(U)-2(D)-4(U)-3(D)-2(U)
+            // 逻辑：下层 (Row r+1) 遮挡 上层 (Row r)
+
+            for (int r = 0; r < 6; ++r) {
+                auto upper = getSlotsByRow(r);     // 被遮挡
+                auto lower = getSlotsByRow(r + 1); // 遮挡者
+
+                // Row 2 (4 cards) covered by Row 3 (2 cards) -> Split Logic
+                if (r == 2) {
+                    // L[0] blocks U[0], U[1]
+                    // L[1] blocks U[2], U[3]
+                    if (lower.size() > 0 && upper.size() > 1) {
+                        upper[0]->coveredBy.push_back(getAbsIndex(lower[0]));
+                        upper[1]->coveredBy.push_back(getAbsIndex(lower[0]));
+                    }
+                    if (lower.size() > 1 && upper.size() > 3) {
+                        upper[2]->coveredBy.push_back(getAbsIndex(lower[1]));
+                        upper[3]->coveredBy.push_back(getAbsIndex(lower[1]));
+                    }
+                }
+                // Row 3 (2 cards) covered by Row 4 (4 cards) -> Split Logic
+                else if (r == 3) {
+                    // U[0] blocked by L[0], L[1]
+                    // U[1] blocked by L[2], L[3]
+                    if (upper.size() > 0 && lower.size() > 1) {
+                        upper[0]->coveredBy.push_back(getAbsIndex(lower[0]));
+                        upper[0]->coveredBy.push_back(getAbsIndex(lower[1]));
+                    }
+                    if (upper.size() > 1 && lower.size() > 3) {
+                        upper[1]->coveredBy.push_back(getAbsIndex(lower[2]));
+                        upper[1]->coveredBy.push_back(getAbsIndex(lower[3]));
+                    }
+                }
+                // 其他情况：通用逻辑
+                else if (upper.size() > lower.size()) {
+                    // 宽行被窄行遮挡 (如 3 被 2 遮，4 被 3 遮)
+                    // Lower[k] 遮挡 Upper[k] 和 Upper[k+1]
+                    for (int k = 0; k < lower.size(); ++k) {
+                        if (k < upper.size()) upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
+                        if (k+1 < upper.size()) upper[k+1]->coveredBy.push_back(getAbsIndex(lower[k]));
+                    }
+                }
+                else if (upper.size() < lower.size()) {
+                    // 窄行被宽行遮挡 (如 2 被 3 遮，3 被 4 遮)
+                    // Upper[k] 被 Lower[k] 和 Lower[k+1] 遮挡
+                    for (int k = 0; k < upper.size(); ++k) {
+                        if (k < lower.size()) upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
+                        if (k+1 < lower.size()) upper[k]->coveredBy.push_back(getAbsIndex(lower[k+1]));
+                    }
+                }
+                else {
+                    // 等宽
+                     for (int k = 0; k < upper.size(); ++k) {
+                        upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
+                    }
+                }
+            }
         }
     };
 
@@ -255,21 +304,17 @@ namespace SevenWondersDuel {
 
         Board() = default;
 
-        // 从玩家已建卡牌中移除指定颜色的卡 (通常只移除最后一张符合条件的)
+        // 从玩家已建卡牌中移除指定颜色的卡
         void destroyCard(Player* target, CardType color) {
             auto it = std::find_if(target->builtCards.rbegin(), target->builtCards.rend(),
                 [color](Card* c){ return c->type == color; });
 
             if (it != target->builtCards.rend()) {
                 Card* c = *it;
-                // 从 builtCards 移除 (注意 rbegin 转 base iterator 的细节)
-                // 简单起见，再正向查一次
                 auto fwdIt = std::find(target->builtCards.begin(), target->builtCards.end(), c);
                 if (fwdIt != target->builtCards.end()) {
                     target->builtCards.erase(fwdIt);
                     discardPile.push_back(c);
-                    // 注意：这里移除了卡，但 Player 缓存的资源 (fixedResources) 未更新
-                    // 在完整实现中应调用 target->recalculateStats()
                 }
             }
         }

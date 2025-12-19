@@ -29,7 +29,8 @@ namespace SevenWondersDuel {
     }
 
     // 辅助函数：解析 Effect 列表
-    std::vector<std::shared_ptr<IEffect>> parseEffects(const Value& vList) {
+    // [UPDATED] 增加 sourceType 参数，判断是否为 RAW_MATERIAL 或 MANUFACTURED
+    std::vector<std::shared_ptr<IEffect>> parseEffects(const Value& vList, CardType sourceType, bool isFromCard) {
         std::vector<std::shared_ptr<IEffect>> effects;
         const auto& list = vList.asList();
 
@@ -39,14 +40,8 @@ namespace SevenWondersDuel {
             if (type == "PRODUCTION" || type == "PRODUCTION_CHOICE") {
                 std::map<ResourceType, int> res;
                 const auto& resObj = effVal["resources"].asObject();
-                // 如果是 PRODUCTION_CHOICE, json可能是 array ["WOOD", "CLAY"]，或者 map
-                // 根据 gamedata.json 定义：
-                // PRODUCTION: { "resources": { "WOOD": 1 } }
-                // PRODUCTION_CHOICE: { "resources": ["GLASS", "PAPER"] } -> 我们的 TinyJson 处理这个会有点 tricky
-                // 让我们兼容这两种写法。
 
                 if (effVal["resources"].isList()) {
-                    // 列表格式 ["A", "B"]，默认为各 1 个
                     for(const auto& item : effVal["resources"].asList()) {
                         res[strToResource(item.asString())] = 1;
                     }
@@ -57,10 +52,19 @@ namespace SevenWondersDuel {
                 }
 
                 bool isChoice = (type == "PRODUCTION_CHOICE");
-                effects.push_back(std::make_shared<ProductionEffect>(res, isChoice));
+
+                // [NEW] 如果来源是 RAW_MATERIAL(棕) 或 MANUFACTURED(灰)，且不是 choice，则视为 Tradable
+                bool isTradable = (sourceType == CardType::RAW_MATERIAL || sourceType == CardType::MANUFACTURED);
+                // 奇迹和黄卡产生的资源虽然是固定的 (非 Choice)，但不是 Tradable (例如奇迹产生的玻璃)
+                // 确保只有 Card 来源且颜色正确才算
+                if (!isFromCard) isTradable = false;
+                if (isChoice) isTradable = false; // Choice 资源肯定不参与交易计算
+
+                effects.push_back(std::make_shared<ProductionEffect>(res, isChoice, isTradable));
             }
             else if (type == "MILITARY") {
-                effects.push_back(std::make_shared<MilitaryEffect>(effVal["shields"].asInt()));
+                // 传入 isFromCard 标记
+                effects.push_back(std::make_shared<MilitaryEffect>(effVal["shields"].asInt(), isFromCard));
             }
             else if (type == "VICTORY_POINTS") {
                 effects.push_back(std::make_shared<VictoryPointEffect>(effVal["amount"].asInt()));
@@ -76,14 +80,9 @@ namespace SevenWondersDuel {
             }
             else if (type == "COINS_PER_TYPE") {
                 CardType t = strToCardType(effVal["target_type"].asString());
-                // 特殊处理 WONDER 类型，它在 strToCardType 可能返回默认
                 if (effVal["target_type"].asString() == "WONDER") t = CardType::WONDER;
 
                 bool countWonder = (t == CardType::WONDER);
-                // 修正逻辑：CoinsPerTypeEffect 的构造参数需要对齐
-                // 如果 target_type 是 WONDER，我们传入 CardType::WONDER (需在 Global.h 确认 CardType 定义)
-                // 或者我们复用 CardType::WONDER 并在 Player::getCardCount 处理
-
                 effects.push_back(std::make_shared<CoinsPerTypeEffect>(t, effVal["amount"].asInt(), countWonder));
             }
             else if (type == "DESTROY_CARD") {
@@ -111,7 +110,7 @@ namespace SevenWondersDuel {
                 else if(criteriaStr == "GREEN_CARDS") c = GuildCriteria::GREEN_CARDS;
                 else if(criteriaStr == "RED_CARDS") c = GuildCriteria::RED_CARDS;
                 else if(criteriaStr == "COINS") c = GuildCriteria::COINS;
-                else c = GuildCriteria::YELLOW_CARDS; // Default
+                else c = GuildCriteria::YELLOW_CARDS;
 
                 effects.push_back(std::make_shared<GuildEffect>(c));
             }
@@ -123,13 +122,11 @@ namespace SevenWondersDuel {
                                   std::vector<Card>& outCards,
                                   std::vector<Wonder>& outWonders)
     {
-        // --- 新增调试代码 ---
-        std::cout << "[DEBUG] Current Working Directory: " << std::filesystem::current_path() << std::endl;
-        std::cout << "[DEBUG] Trying to open: " << filepath << std::endl;
+        std::cout << "[DEBUG] Loading data from: " << filepath << std::endl;
         if (!std::filesystem::exists(filepath)) {
-            std::cerr << "[DEBUG] Error: The file does not exist at this path!" << std::endl;
+            std::cerr << "[DEBUG] Error: File not found!" << std::endl;
         }
-        // ------------------
+
         std::ifstream file(filepath);
         if (!file.is_open()) {
             std::cerr << "Failed to open " << filepath << std::endl;
@@ -156,12 +153,11 @@ namespace SevenWondersDuel {
             c.type = strToCardType(v["type"].asString());
             c.cost = parseCost(v["cost"]);
             c.chainTag = v["provided_chain"].asString();
-            c.requiresChainTag = v["requires_chain"].asString(); // 注意 json 字段可能不一致，需检查 json
-            // 修正：我的 json 示例里写的是 "chainTag" 还是 "provides_chain"?
-            // 之前的 json 示例用了 "provides_chain" 和 "requires_chain" (马厩示例)
-            // 让我们保持一致。
+            c.requiresChainTag = v["requires_chain"].asString();
 
-            c.effects = parseEffects(v["effects"]);
+            // 解析卡牌效果 (Source = Card, True)
+            // [UPDATED] 传入 c.type
+            c.effects = parseEffects(v["effects"], c.type, true);
             outCards.push_back(c);
         }
 
@@ -172,7 +168,10 @@ namespace SevenWondersDuel {
             w.id = v["id"].asString();
             w.name = v["name"].asString();
             w.cost = parseCost(v["cost"]);
-            w.effects = parseEffects(v["effects"]);
+
+            // 解析奇迹效果 (Source = Wonder, False)
+            // Type 这里设为 Wonder 即可，反正 parseEffects 内部会处理 isFromCard=false
+            w.effects = parseEffects(v["effects"], CardType::WONDER, false);
             outWonders.push_back(w);
         }
 

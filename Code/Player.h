@@ -29,10 +29,15 @@ namespace SevenWondersDuel {
         std::vector<Wonder*> unbuiltWonders;  // 轮抽拿到但未建的奇迹
 
         // 状态统计 (缓存以提高性能)
-        std::map<ResourceType, int> fixedResources; // 固定的资源 (如: 2木)
+        std::map<ResourceType, int> fixedResources; // 玩家拥有的总固定资源 (用于建造)
+        std::map<ResourceType, int> publicProduction; // [NEW] 玩家对对手可见的公开资源 (用于增加对手交易费)
+
         std::vector<std::vector<ResourceType>> choiceResources; // 多选一资源 (如: 木/土/石)
 
         std::map<ScienceSymbol, int> scienceSymbols;
+        // 新增：记录已触发过"配对奖励"的符号，避免重复触发
+        std::set<ScienceSymbol> claimedSciencePairs;
+
         std::set<std::string> ownedChainTags; // 拥有的连锁标记 (如 "MOON")
 
         std::set<ProgressToken> progressTokens;
@@ -48,6 +53,13 @@ namespace SevenWondersDuel {
             fixedResources[ResourceType::CLAY] = 0;
             fixedResources[ResourceType::PAPER] = 0;
             fixedResources[ResourceType::GLASS] = 0;
+
+            // 初始化公开产量
+            publicProduction[ResourceType::WOOD] = 0;
+            publicProduction[ResourceType::STONE] = 0;
+            publicProduction[ResourceType::CLAY] = 0;
+            publicProduction[ResourceType::PAPER] = 0;
+            publicProduction[ResourceType::GLASS] = 0;
 
             // 交易优惠初始化
             tradingDiscounts[ResourceType::WOOD] = false;
@@ -101,24 +113,9 @@ namespace SevenWondersDuel {
         // --- 资源与购买逻辑 ---
 
         // 向银行购买资源的单价
-        int getTradingPrice(ResourceType type, const Player& opponent) const {
-            // 如果有特定资源的优惠卡 (如 Stone Reserve)，价格固定为 1
-            if (tradingDiscounts.at(type)) return 1;
-
-            // 否则：2 + 对手该类资源产量的"基础值"
-            // 注意规则：只计算棕色/灰色卡牌提供的资源，奇迹/黄卡提供的多选一不算
-            // 简化处理：我们要遍历对手的卡牌来看他有多少 FIXED 资源
-            // (稍微优化的做法是 opponent 维护一个 public 的 fixedResources 计数器)
-            int opponentProduction = opponent.fixedResources.at(type);
-            return 2 + opponentProduction;
-        }
+        int getTradingPrice(ResourceType type, const Player& opponent) const;
 
         // 检查是否能负担费用，并返回实际开销
-        // 返回值:
-        //   pair.first: true=买得起, false=买不起
-        //   pair.second: 需要支付给银行的总金币数 (包含交易费)
-        // 注意：这是一个简化版的贪心/回溯算法需求，因为"多选一"资源需要最优匹配
-        // 在这里我们只声明接口，具体实现在 .cpp
         std::pair<bool, int> calculateCost(const ResourceCost& cost, const Player& opponent) const;
 
         // --- 动作执行 ---
@@ -132,8 +129,12 @@ namespace SevenWondersDuel {
         }
 
         // 接收各种资源/Buff
-        void addResource(ResourceType type, int count) {
+        // [UPDATED] 支持区分是否为公开资源
+        void addResource(ResourceType type, int count, bool isTradable) {
             fixedResources[type] += count;
+            if (isTradable) {
+                publicProduction[type] += count;
+            }
         }
 
         void addProductionChoice(const std::vector<ResourceType>& choices) {

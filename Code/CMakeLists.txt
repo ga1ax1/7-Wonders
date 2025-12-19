@@ -13,7 +13,6 @@ add_executable(7-Wonders main.cpp
         Player.cpp
         EffectSystem.cpp
         GameController.cpp
-        Board.cpp
         DataLoader.cpp
         DataLoader.h
         TinyJson.h

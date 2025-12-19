@@ -3,6 +3,7 @@
 #include "Agent.h"
 #include <iostream>
 #include <memory>
+#include <limits>
 
 using namespace SevenWondersDuel;
 
@@ -12,8 +13,7 @@ int main() {
     GameController game;
 
     // 加载数据 (请确保 gamedata.json 存在于运行目录)
-    // 如果没有文件，会报错并退出
-    game.initializeGame("/Users/choyichi/Desktop/7-Wonders/Code/gamedata.json");
+    game.initializeGame("../gamedata.json");
 
     // 2. 游戏配置菜单
     view.renderMainMenu();
@@ -22,12 +22,10 @@ int main() {
     std::unique_ptr<IPlayerAgent> agent2;
 
     int modeChoice;
-    std::cout << "Select Game Mode:\n";
-    std::cout << "  [1] Human vs Human\n";
-    std::cout << "  [2] Human vs AI\n";
-    std::cout << "  [3] AI vs AI (Watch Mode)\n";
-    std::cout << ">> ";
     std::cin >> modeChoice;
+
+    // IMPORTANT: Clear the buffer after reading int to prevent prompt skipping
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
     if (modeChoice == 1) {
         agent1 = std::make_unique<HumanAgent>();
@@ -47,54 +45,44 @@ int main() {
     // 4. 主循环
     while (game.getState() != GameState::GAME_OVER) {
         const auto& model = game.getModel();
-
-        // 渲染界面
-        view.renderGame(model);
-
-        // 确定当前行动的代理
         IPlayerAgent* currentAgent = (model.currentPlayerIndex == 0) ? agent1.get() : agent2.get();
-        Player* currentPlayer = model.getCurrentPlayer();
 
-        view.printTurnInfo(currentPlayer);
-
-        // 如果是 AI 回合，暂停一下让玩家看清局面
+        // 渲染逻辑优化：AI 回合主动渲染以便观看，人类回合由 promptHumanAction 内部渲染
         if (!currentAgent->isHuman()) {
-             // 已经在 Agent 内部 sleep 了，这里不需要
+            // [Updated] 传入当前 state，确保 Draft 阶段渲染正确
+            view.renderGameForAI(model, game.getState());
         }
 
         // 获取决策
         bool actionSuccess = false;
         while (!actionSuccess) {
+            // 如果是 HumanAgent，promptHumanAction 会负责清屏、渲染、报错循环
+            // 如果是 RandomAI，它直接返回 Action
             Action action = currentAgent->decideAction(game, view);
 
-            // 执行
-            // processAction 内部会验证并返回 true/false
-            // 如果是 AI 做出无效操作（理论上 RandomAI 只选 valid 的），这里会死循环？
-            // 我们的 RandomAI 使用 validateAction 过滤了，所以应该是安全的。
-            // 如果是 Human，输入无效后 processAction 返回 false，打印错误，循环继续。
-
-            ActionResult val = game.validateAction(action); // 再次验证以获取错误信息用于显示
+            // 逻辑验证 (扣钱/规则校验)
+            ActionResult val = game.validateAction(action);
 
             if (game.processAction(action)) {
                 actionSuccess = true;
-                // 动作成功，状态已更新，进行下一次主循环
-                if (!currentAgent->isHuman()) {
-                     view.printMessage("AI performed an action.");
-                }
+                // 成功执行后，清除错误信息 (如果有残留)
+                view.clearLastError();
             } else {
+                // 动作逻辑失败 (例如钱不够)
                 if (currentAgent->isHuman()) {
-                    view.printError("Action Failed: " + val.message);
+                    // 将错误信息注入 View，并在下一次循环的 promptHumanAction 中显示
+                    view.setLastError("Action Failed: " + val.message);
                 } else {
-                    // AI 失败？这是一个 Bug，但也得防住死循环
-                    view.printError("CRITICAL: AI attempted invalid action.");
-                    actionSuccess = true; // 强制跳过防止死循环 (实际应抛出异常)
+                    // 对于 AI 的严重逻辑错误，直接使用标准错误流输出
+                    std::cerr << "\033[1;31m[CRITICAL] AI attempted invalid action: " << val.message << "\033[0m" << std::endl;
+                    actionSuccess = true; // Skip to prevent infinite loop
                 }
             }
         }
     }
 
     // 5. 游戏结束
-    view.renderGame(game.getModel()); // 最后一帧
+    view.renderGameForAI(game.getModel(), GameState::GAME_OVER); // 最后一帧
 
     std::cout << "\n=========================================\n";
     std::cout << "              GAME OVER                  \n";
