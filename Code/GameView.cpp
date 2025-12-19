@@ -392,6 +392,10 @@ namespace SevenWondersDuel {
             renderProgressTokens(model.board->availableProgressTokens, false);
         }
         printLine('-');
+
+        // [Update] 增加日志显示，这样玩家知道为什么触发了选择
+        renderActionLog(model.gameLog);
+
         renderErrorMessage();
         renderCommandHelp(fromBox ? GameState::WAITING_FOR_TOKEN_SELECTION_LIB : GameState::WAITING_FOR_TOKEN_SELECTION_PAIR);
     }
@@ -426,7 +430,6 @@ namespace SevenWondersDuel {
         renderCommandHelp(GameState::WAITING_FOR_DISCARD_BUILD);
     }
 
-    // [Update] 优化提示信息
     void GameView::renderStartPlayerSelect(const GameModel& model) {
         clearScreen();
         printLine('='); printCentered("CHOOSE STARTING PLAYER"); printLine('=');
