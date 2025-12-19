@@ -6,8 +6,27 @@
 #include <limits>
 
 using namespace SevenWondersDuel;
+#ifdef _WIN32
+#include <windows.h>
+#endif
+using namespace SevenWondersDuel;
 
 int main() {
+    // Windows 控制台编码设置
+#ifdef _WIN32
+    // 设置控制台输出为UTF-8
+    SetConsoleOutputCP(CP_UTF8);
+
+    // 如果仍有问题，尝试以下组合：
+    system("chcp 65001 > nul");  // 设置代码页为UTF-8
+
+    // 设置控制台字体支持UTF-8
+    CONSOLE_FONT_INFOEX font;
+    font.cbSize = sizeof(font);
+    GetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &font);
+    wcscpy(font.FaceName, L"Consolas");
+    SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &font);
+#endif
     // 1. 初始化
     GameView view;
     GameController game;
