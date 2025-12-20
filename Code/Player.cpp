@@ -5,15 +5,13 @@
 #include "Player.h"
 #include <limits>
 #include <numeric>
+#include <vector>
+#include <algorithm>
+#include <map>
 
 namespace SevenWondersDuel {
 
     // 辅助：递归求解最小交易成本
-    // needed: 当前仍缺少的资源
-    // choiceIdx: 当前处理到第几个"多选一"资源
-    // choices: 玩家拥有的所有多选一能力
-    // opponent: 对手引用 (用于查询交易价格)
-    // parent: 玩家指针 (用于查询是否有交易优惠)
     void solveMinCost(std::map<ResourceType, int> needed,
                       size_t choiceIdx,
                       const std::vector<std::vector<ResourceType>>& choices,
@@ -21,9 +19,6 @@ namespace SevenWondersDuel {
                       const Player& parent,
                       int& minCost)
     {
-        // 剪枝：如果当前路径的已知成本已经超过当前发现的最小值，没必要继续
-        // (简单场景下暂略，直接算到底)
-
         // 基准情况：所有多选一资源都分配完毕
         if (choiceIdx == choices.size()) {
             int currentTradingCost = 0;
@@ -41,9 +36,6 @@ namespace SevenWondersDuel {
 
         // 递归步骤：尝试当前多选一资源的每种可能性
         const auto& options = choices[choiceIdx];
-
-        // 优化：如果这个多选一里的选项都不是我需要的，随便选一个往下走即可
-        // 或者简单地遍历所有选项
         bool usefulOptionFound = false;
 
         for (ResourceType res : options) {
@@ -56,20 +48,17 @@ namespace SevenWondersDuel {
             }
         }
 
-        // 如果提供的选项都没用 (比如产木/土，但我缺石)，那就都不选(或者随便选一个)，直接看下一个
+        // 如果提供的选项都没用，那就都不选，直接看下一个
         if (!usefulOptionFound) {
             solveMinCost(needed, choiceIdx + 1, choices, opponent, parent, minCost);
         }
     }
 
-    // [UPDATED] 实现交易价格计算逻辑
     int Player::getTradingPrice(ResourceType type, const Player& opponent) const {
         // 如果有特定资源的优惠卡 (如 Stone Reserve)，价格固定为 1
-        if (tradingDiscounts.at(type)) return 1;
+        if (tradingDiscounts.count(type) && tradingDiscounts.at(type)) return 1;
 
         // 否则：2 + 对手该类资源产量的"公开值" (棕/灰卡)
-        // 之前逻辑错误使用了 fixedResources (包含了黄卡/奇迹)
-        // 现在使用 publicProduction
         int opponentProduction = 0;
         if (opponent.publicProduction.count(type)) {
             opponentProduction = opponent.publicProduction.at(type);
@@ -77,12 +66,12 @@ namespace SevenWondersDuel {
         return 2 + opponentProduction;
     }
 
-    std::pair<bool, int> Player::calculateCost(const ResourceCost& cost, const Player& opponent) const {
-        // 1. 基础金币检查
-        if (coins < cost.coins) {
-            // 连基础造价的钱都不够
-             // 这里返回的 cost 是缺口，虽然实际上直接 fail
-            return { false, cost.coins };
+    // [UPDATED] 实现 Masonry 和 Architecture 的减费逻辑
+    std::pair<bool, int> Player::calculateCost(const ResourceCost& cost, const Player& opponent, CardType targetType) const {
+        // 1. 基础金币检查 (如果只需要金币)
+        if (cost.resources.empty()) {
+            if (coins < cost.coins) return { false, cost.coins };
+            return { true, cost.coins };
         }
 
         // 2. 准备计算资源缺口
@@ -93,32 +82,64 @@ namespace SevenWondersDuel {
             ResourceType type = it->first;
             int needed = it->second;
 
-            // 查找我拥有的固定资源
             auto myResIt = fixedResources.find(type);
             int owned = (myResIt != fixedResources.end()) ? myResIt->second : 0;
 
             if (owned >= needed) {
-                // 够了，不需要了
                 it = deficit.erase(it);
             } else {
-                // 不够，减去拥有的
                 it->second -= owned;
                 ++it;
             }
         }
 
-        // 如果扣除固定产出后没缺口了，且金币够
+        // --- [NEW] 科技标记减费逻辑 ---
+        int discountCount = 0;
+        if (progressTokens.count(ProgressToken::MASONRY) && targetType == CardType::CIVILIAN) {
+            discountCount = 2;
+        } else if (progressTokens.count(ProgressToken::ARCHITECTURE) && targetType == CardType::WONDER) {
+            discountCount = 2;
+        }
+
+        // 智能减免：优先减免那些"如果不减免就很贵"的资源
+        while (discountCount > 0 && !deficit.empty()) {
+            // 寻找当前缺口中，交易单价最高的资源
+            ResourceType bestToDiscount = ResourceType::WOOD;
+            int maxPrice = -1;
+            bool found = false;
+
+            for (auto const& [type, count] : deficit) {
+                if (count > 0) {
+                    int price = getTradingPrice(type, opponent);
+                    if (price > maxPrice) {
+                        maxPrice = price;
+                        bestToDiscount = type;
+                        found = true;
+                    }
+                }
+            }
+
+            if (found) {
+                deficit[bestToDiscount]--;
+                if (deficit[bestToDiscount] <= 0) {
+                    deficit.erase(bestToDiscount);
+                }
+                discountCount--;
+            } else {
+                break; // 没东西可减了
+            }
+        }
+        // -----------------------------
+
+        // 如果扣除固定产出和科技减免后没缺口了，且金币够
         if (deficit.empty()) {
+            if (coins < cost.coins) return { false, cost.coins };
             return { true, cost.coins };
         }
 
-        // 4. 利用多选一资源填补缺口 (寻找最小交易费)
+        // 4. 利用多选一资源填补剩余缺口 (寻找最小交易费)
         int minTradingCost = std::numeric_limits<int>::max();
 
-        // 调用递归求解
-        // 注意：这里传入的是值拷贝的 deficit，因为递归中会修改
-        // const_cast 是为了在 const 函数中调用 helper，或者 helper 设为 static/friend
-        // 这里直接传 *this 即可
         solveMinCost(deficit, 0, choiceResources, opponent, *this, minTradingCost);
 
         // 5. 汇总结果

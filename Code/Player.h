@@ -30,12 +30,12 @@ namespace SevenWondersDuel {
 
         // 状态统计 (缓存以提高性能)
         std::map<ResourceType, int> fixedResources; // 玩家拥有的总固定资源 (用于建造)
-        std::map<ResourceType, int> publicProduction; // [NEW] 玩家对对手可见的公开资源 (用于增加对手交易费)
+        std::map<ResourceType, int> publicProduction; // 玩家对对手可见的公开资源 (用于增加对手交易费)
 
         std::vector<std::vector<ResourceType>> choiceResources; // 多选一资源 (如: 木/土/石)
 
         std::map<ScienceSymbol, int> scienceSymbols;
-        // 新增：记录已触发过"配对奖励"的符号，避免重复触发
+        // 记录已触发过"配对奖励"的符号，避免重复触发
         std::set<ScienceSymbol> claimedSciencePairs;
 
         std::set<std::string> ownedChainTags; // 拥有的连锁标记 (如 "MOON")
@@ -81,7 +81,6 @@ namespace SevenWondersDuel {
         }
 
         // 计算当前总分 (胜利点数)
-        // 注意：这不包含科技胜利或军事胜利的即时判定，只计算点数
         int getScore(const Player& opponent) const {
             int score = 0;
 
@@ -95,7 +94,7 @@ namespace SevenWondersDuel {
                 score += wonder->getVictoryPoints(this, &opponent);
             }
 
-            // 3. 军事分 (在 Board 中计算，此处不加，最终 Controller 会汇总)
+            // 3. 军事分 (在 Board 中计算，此处不加)
 
             // 4. 金币分 (3块钱1分)
             score += coins / 3;
@@ -110,13 +109,25 @@ namespace SevenWondersDuel {
             return score;
         }
 
+        // 获取仅来自蓝色卡牌的分数 (用于平局判定)
+        int getBlueCardScore(const Player& opponent) const {
+            int score = 0;
+            for (const auto& card : builtCards) {
+                if (card->type == CardType::CIVILIAN) {
+                    score += card->getVictoryPoints(this, &opponent);
+                }
+            }
+            return score;
+        }
+
         // --- 资源与购买逻辑 ---
 
         // 向银行购买资源的单价
         int getTradingPrice(ResourceType type, const Player& opponent) const;
 
         // 检查是否能负担费用，并返回实际开销
-        std::pair<bool, int> calculateCost(const ResourceCost& cost, const Player& opponent) const;
+        // [UPDATED] 增加 CardType 参数以支持 Masonry/Architecture 等科技标记减费
+        std::pair<bool, int> calculateCost(const ResourceCost& cost, const Player& opponent, CardType targetType) const;
 
         // --- 动作执行 ---
 
@@ -129,7 +140,6 @@ namespace SevenWondersDuel {
         }
 
         // 接收各种资源/Buff
-        // [UPDATED] 支持区分是否为公开资源
         void addResource(ResourceType type, int count, bool isTradable) {
             fixedResources[type] += count;
             if (isTradable) {
@@ -157,12 +167,9 @@ namespace SevenWondersDuel {
             if (token == ProgressToken::LAW) addScienceSymbol(ScienceSymbol::LAW);
         }
 
-        // 建造卡牌 (仅将卡牌加入列表并触发数据更新，扣钱逻辑在Controller)
+        // 建造卡牌
         void constructCard(Card* card) {
             builtCards.push_back(card);
-            // 这里不直接调 effects->apply，由 Controller 统一调度，
-            // 否则会导致依赖循环或逻辑分散。
-            // 但我们需要更新基础统计数据：
             addChainTag(card->chainTag);
         }
 

@@ -109,9 +109,20 @@ namespace SevenWondersDuel {
             if (s1 > s2) model->winnerIndex = 0;
             else if (s2 > s1) model->winnerIndex = 1;
             else {
-                // 平局判定：蓝卡分
-                model->winnerIndex = -1; // Draw
-                model->addLog("[System] Score Tie! (Detailed tie-breaker TODO)");
+                // [FIX] 平局判定：蓝卡分
+                int blue1 = model->players[0]->getBlueCardScore(*model->players[1]);
+                int blue2 = model->players[1]->getBlueCardScore(*model->players[0]);
+
+                if (blue1 > blue2) {
+                    model->winnerIndex = 0;
+                    model->addLog("[System] Score Tie! Player 1 wins by Civilian (Blue) Points.");
+                } else if (blue2 > blue1) {
+                    model->winnerIndex = 1;
+                    model->addLog("[System] Score Tie! Player 2 wins by Civilian (Blue) Points.");
+                } else {
+                    model->winnerIndex = -1; // Shared Victory / True Draw
+                    model->addLog("[System] True Draw! (Scores and Blue Points identical)");
+                }
             }
             return;
         }
@@ -233,6 +244,7 @@ namespace SevenWondersDuel {
         Player* opponent = model->getOpponent();
         Card* targetCard = findCardInPyramid(action.targetCardId);
 
+        // [UPDATED] 传入 CardType 用于计算减费
         ActionResult res = validateAction(action);
         currPlayer->payCoins(res.cost);
 
@@ -240,6 +252,18 @@ namespace SevenWondersDuel {
         currPlayer->constructCard(targetCard);
 
         model->addLog("[" + currPlayer->name + "] built " + targetCard->name);
+
+        // [FIX] Urbanism Check: 如果是连锁建造 (res.cost == 0 但 原卡有消费 且 确实是 Chain)，奖励4元
+        bool isChain = false;
+        if (!targetCard->requiresChainTag.empty() &&
+            currPlayer->ownedChainTags.count(targetCard->requiresChainTag)) {
+            isChain = true;
+        }
+
+        if (isChain && currPlayer->progressTokens.count(ProgressToken::URBANISM)) {
+            currPlayer->gainCoins(4);
+            model->addLog("[Effect] Urbanism: +4 coins from chain build.");
+        }
 
         for(auto& eff : targetCard->effects) {
             eff->apply(currPlayer, opponent, this);
@@ -275,6 +299,7 @@ namespace SevenWondersDuel {
         Card* pyramidCard = findCardInPyramid(action.targetCardId);
         Wonder* wonder = findWonderInHand(currPlayer, action.targetWonderId);
 
+        // [UPDATED] 传入 CardType::WONDER
         ActionResult res = validateAction(action);
         currPlayer->payCoins(res.cost);
 
@@ -294,7 +319,6 @@ namespace SevenWondersDuel {
             model->players[1]->unbuiltWonders.clear();
         }
 
-        // 核心修复：Theology Token 效果
         if (currPlayer->progressTokens.count(ProgressToken::THEOLOGY)) {
              grantExtraTurn();
              model->addLog("[Effect] Theology Token grants an Extra Turn!");
@@ -304,8 +328,6 @@ namespace SevenWondersDuel {
             return;
         }
 
-        // 如果状态切换了（比如因为陵墓变为 WAITING_FOR_DISCARD_BUILD），就不立即结束回合
-        // 只有还在 PLAY PHASE 才结束（代表没有触发打断型效果）
         if (currentState == GameState::AGE_PLAY_PHASE) {
             onTurnEnd();
         }
@@ -329,6 +351,12 @@ namespace SevenWondersDuel {
                 currPlayer->addProgressToken(token);
                 model->addLog("[" + currPlayer->name + "] selected a Progress Token.");
 
+                // [FIX] Urbanism Instant Bonus
+                if (token == ProgressToken::URBANISM) {
+                    currPlayer->gainCoins(6);
+                    model->addLog("[Effect] Urbanism: +6 coins immediately.");
+                }
+
                 currentState = GameState::AGE_PLAY_PHASE;
 
                 if (token == ProgressToken::LAW) {
@@ -343,17 +371,14 @@ namespace SevenWondersDuel {
     }
 
     void GameController::handleDestruction(const Action& action) {
-        // 如果 ID 为空，说明跳过
         if (action.targetCardId.empty()) {
-            model->addLog("[System] Destruction skipped (no valid target or player chose to skip).");
+            model->addLog("[System] Destruction skipped.");
             currentState = GameState::AGE_PLAY_PHASE;
             onTurnEnd();
             return;
         }
 
         Player* opponent = model->getOpponent();
-        CardType targetType = CardType::CIVILIAN; // Fallback
-
         Card* target = nullptr;
         for(auto c : opponent->builtCards) {
             if (c->id == action.targetCardId) {
@@ -372,7 +397,6 @@ namespace SevenWondersDuel {
 
     void GameController::handleChooseStartingPlayer(const Action& action) {
         Player* curr = model->getCurrentPlayer();
-        Player* opponent = model->getOpponent();
 
         int nextStarter = -1;
         if (action.targetCardId == "ME") {
@@ -387,35 +411,29 @@ namespace SevenWondersDuel {
         model->currentPlayerIndex = nextStarter;
     }
 
-    // [NEW] 处理弃牌堆选牌 (Mausoleum)
     void GameController::handleSelectFromDiscard(const Action& action) {
         Player* currPlayer = model->getCurrentPlayer();
         Player* opponent = model->getOpponent();
 
-        // 1. 在弃牌堆中查找
         auto& pile = model->board->discardPile;
         auto it = std::find_if(pile.begin(), pile.end(), [&](Card* c){ return c->id == action.targetCardId; });
 
         if (it != pile.end()) {
             Card* card = *it;
-            // 2. 移除并加入玩家建筑
             pile.erase(it);
             currPlayer->constructCard(card);
 
             model->addLog("[" + currPlayer->name + "] resurrected " + card->name + " from discard!");
 
-            // 3. 应用效果
             for(auto& eff : card->effects) {
                 eff->apply(currPlayer, opponent, this);
             }
 
-            // 4. 检查连带效果
              if (checkForNewSciencePairs(currPlayer)) {
                 return;
             }
         }
 
-        // 恢复正常状态并结束回合
         currentState = GameState::AGE_PLAY_PHASE;
         onTurnEnd();
     }
@@ -453,15 +471,11 @@ namespace SevenWondersDuel {
 
         if (currentState == GameState::WAITING_FOR_DESTRUCTION) {
             if (action.type == ActionType::SELECT_DESTRUCTION) {
-                // 1. 检查目标是否是空 (跳过)
                 if (action.targetCardId.empty()) {
-                    // 如果允许跳过（例如对手没有该颜色的卡），这里返回 true
-                    // 简单逻辑：总是允许跳过
                     result.isValid = true;
                     return result;
                 }
 
-                // 2. 检查对手是否真的有这张卡
                 Player* opponent = model->getOpponent();
                 bool hasCard = false;
                 Card* targetCard = nullptr;
@@ -478,7 +492,6 @@ namespace SevenWondersDuel {
                     return result;
                 }
 
-                // 3. [核心修复] 检查颜色是否匹配
                 if (targetCard->type != pendingDestructionType) {
                     result.message = "Invalid card color. Must destroy a specific type.";
                     return result;
@@ -491,7 +504,6 @@ namespace SevenWondersDuel {
             return result;
         }
 
-        // [NEW] 校验弃牌堆选择
         if (currentState == GameState::WAITING_FOR_DISCARD_BUILD) {
              if (action.type == ActionType::SELECT_FROM_DISCARD) {
                  auto& pile = model->board->discardPile;
@@ -529,11 +541,15 @@ namespace SevenWondersDuel {
             if (!isAvailable) { result.message = "Card is currently covered"; return result; }
 
             if (action.type == ActionType::BUILD_CARD) {
-                auto costInfo = currPlayer->calculateCost(target->cost, *opponent);
+                // [UPDATED] 传入 target->type
+                auto costInfo = currPlayer->calculateCost(target->cost, *opponent, target->type);
+
+                // 检查连锁
                 if (!target->requiresChainTag.empty() &&
                     currPlayer->ownedChainTags.count(target->requiresChainTag)) {
                     costInfo.first = true; costInfo.second = 0;
                 }
+
                 if (!costInfo.first) { result.message = "Insufficient resources/coins"; return result; }
 
                 result.isValid = true;
@@ -549,7 +565,8 @@ namespace SevenWondersDuel {
                 if (!w) { result.message = "Wonder not found in hand"; return result; }
                 if (w->isBuilt) { result.message = "Wonder already built"; return result; }
 
-                auto costInfo = currPlayer->calculateCost(w->cost, *opponent);
+                // [UPDATED] 传入 CardType::WONDER
+                auto costInfo = currPlayer->calculateCost(w->cost, *opponent, CardType::WONDER);
                 if (!costInfo.first) { result.message = "Insufficient resources for Wonder"; return result; }
 
                 result.isValid = true;
@@ -574,7 +591,7 @@ namespace SevenWondersDuel {
             case ActionType::SELECT_PROGRESS_TOKEN: handleSelectProgressToken(action); break;
             case ActionType::SELECT_DESTRUCTION: handleDestruction(action); break;
             case ActionType::CHOOSE_STARTING_PLAYER: handleChooseStartingPlayer(action); break;
-            case ActionType::SELECT_FROM_DISCARD: handleSelectFromDiscard(action); break; // [NEW]
+            case ActionType::SELECT_FROM_DISCARD: handleSelectFromDiscard(action); break;
             default: return false;
         }
         return true;

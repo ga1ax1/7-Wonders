@@ -333,23 +333,37 @@ namespace SevenWondersDuel {
         switch (state) {
             case GameState::WONDER_DRAFT_PHASE_1:
             case GameState::WONDER_DRAFT_PHASE_2:
-                std::cout << "pick <ID>, detail <1/2>\n";
+                std::cout << "pick <ID>" << std::endl;
+                std::cout << "       ";
+                std::cout << "detail <1/2>" << std::endl;
                 break;
             case GameState::WAITING_FOR_TOKEN_SELECTION_PAIR:
             case GameState::WAITING_FOR_TOKEN_SELECTION_LIB:
-                std::cout << "select <ID> (e.g. select S1), info <ID>\n";
+                std::cout << "select <ID> (e.g. select S1)" << std::endl;
+                std::cout << "       ";
+                std::cout << "info <ID>" << std::endl;
                 break;
             case GameState::WAITING_FOR_DESTRUCTION:
-                std::cout << "destroy <ID> (e.g. destroy T1), skip\n";
+                std::cout << "destroy <ID>" << std::endl;
+                std::cout << "       ";
+                std::cout << "skip" <<std::endl;
                 break;
             case GameState::WAITING_FOR_DISCARD_BUILD:
-                std::cout << "resurrect <ID> (e.g. resurrect D1)\n";
+                std::cout << "resurrect <ID>" <<std::endl;
                 break;
             case GameState::WAITING_FOR_START_PLAYER_SELECTION:
-                std::cout << "choose me, choose opponent\n";
+                std::cout << "choose me, choose opponent" <<std::endl;
                 break;
             default:
-                std::cout << "build/discard <CID>, wonder <CID> <WID>, detail <1/2>, pile\n";
+                std::cout << "build/discard <CID>" << std::endl;
+                std::cout << "       ";
+                std::cout << "wonder <CID> <WID>" <<std::endl;
+                std::cout << "       ";
+                std::cout << "detail <1/2>" <<std::endl;
+                std::cout << "       ";
+                std::cout << "pile" <<std::endl;
+                std::cout << "       ";
+                std::cout << "info <ID>" <<std::endl;
                 break;
         }
     }
