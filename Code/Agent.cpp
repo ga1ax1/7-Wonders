@@ -29,8 +29,11 @@ namespace SevenWondersDuel {
     // ==========================================================
 
     Action RandomAIAgent::decideAction(GameController& game, GameView& view) {
-        // 模拟思考时间
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        // 1. 提示 AI 正在思考
+        std::cout << "\033[1;35m[AI] 正在思考...\033[0m" << std::endl;
+
+        // 2. 模拟思考时间 (1.5秒)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
         const GameModel& model = game.getModel();
         GameState state = game.getState();
@@ -46,7 +49,11 @@ namespace SevenWondersDuel {
             if (!model.draftPool.empty()) {
                 std::uniform_int_distribution<int> dist(0, model.draftPool.size() - 1);
                 action.type = ActionType::DRAFT_WONDER;
-                action.targetWonderId = model.draftPool[dist(rng)]->id;
+                Wonder* selectedWonder = model.draftPool[dist(rng)];
+                action.targetWonderId = selectedWonder->id;
+
+                std::cout << "\033[1;35m[AI] 决定拿取奇迹: " << selectedWonder->name << "\033[0m\n";
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
                 return action;
             }
         }
@@ -62,6 +69,9 @@ namespace SevenWondersDuel {
                 std::uniform_int_distribution<int> dist(0, tokens.size() - 1);
                 action.type = ActionType::SELECT_PROGRESS_TOKEN;
                 action.selectedToken = tokens[dist(rng)];
+
+                std::cout << "\033[1;35m[AI] 获得科技配对奖励，选择标记...\033[0m\n";
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
                 return action;
             }
         }
@@ -73,46 +83,49 @@ namespace SevenWondersDuel {
                 std::uniform_int_distribution<int> dist(0, tokens.size() - 1);
                 action.type = ActionType::SELECT_PROGRESS_TOKEN;
                 action.selectedToken = tokens[dist(rng)];
+
+                std::cout << "\033[1;35m[AI] 触发图书馆效果，从盒子中选择标记...\033[0m\n";
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
                 return action;
             }
         }
 
-        // C. 摧毁对手卡牌 (关键修复：循环尝试)
+        // C. 摧毁对手卡牌
         else if (state == GameState::WAITING_FOR_DESTRUCTION) {
             const Player* opp = model.getOpponent();
-
-            // 获取对手所有卡牌，打乱顺序尝试
             std::vector<Card*> candidates = opp->builtCards;
             std::shuffle(candidates.begin(), candidates.end(), rng);
 
-            // 1. 尝试摧毁其中一张
+            // 1. 尝试摧毁
             for (auto c : candidates) {
                 Action tryDestruct;
                 tryDestruct.type = ActionType::SELECT_DESTRUCTION;
                 tryDestruct.targetCardId = c->id;
 
-                // 利用游戏逻辑验证是否符合颜色要求
                 if (game.validateAction(tryDestruct).isValid) {
+                    std::cout << "\033[1;35m[AI] 决定摧毁对手的卡牌: " << c->name << "\033[0m\n";
+                    std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
                     return tryDestruct;
                 }
             }
 
-            // 2. 如果都不行 (或没有目标)，尝试 SKIP (空ID)
+            // 2. 放弃
             Action skipAction;
             skipAction.type = ActionType::SELECT_DESTRUCTION;
             skipAction.targetCardId = "";
             if (game.validateAction(skipAction).isValid) {
+                std::cout << "\033[1;35m[AI] 没有合适的目标，选择跳过摧毁。\033[0m\n";
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
                 return skipAction;
             }
 
-            return action; // Should not reach here
+            return action;
         }
 
         // D. 陵墓复活
         else if (state == GameState::WAITING_FOR_DISCARD_BUILD) {
             const auto& pile = model.board->discardPile;
             if (!pile.empty()) {
-                // 同样打乱尝试，防止死循环（虽然弃牌堆通常没有限制）
                 std::vector<Card*> candidates = pile;
                 std::shuffle(candidates.begin(), candidates.end(), rng);
 
@@ -121,6 +134,8 @@ namespace SevenWondersDuel {
                     tryResurrect.type = ActionType::SELECT_FROM_DISCARD;
                     tryResurrect.targetCardId = c->id;
                     if (game.validateAction(tryResurrect).isValid) {
+                        std::cout << "\033[1;35m[AI] 决定从弃牌堆复活: " << c->name << "\033[0m\n";
+                        std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
                         return tryResurrect;
                     }
                 }
@@ -132,7 +147,11 @@ namespace SevenWondersDuel {
         else if (state == GameState::WAITING_FOR_START_PLAYER_SELECTION) {
             std::uniform_int_distribution<int> dist(0, 1);
             action.type = ActionType::CHOOSE_STARTING_PLAYER;
-            action.targetCardId = (dist(rng) == 0) ? "ME" : "OPPONENT";
+            bool chooseMe = (dist(rng) == 0);
+            action.targetCardId = chooseMe ? "ME" : "OPPONENT";
+
+            std::cout << "\033[1;35m[AI] 决定下个时代 " << (chooseMe ? "自己" : "对手") << " 先手。\033[0m\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
             return action;
         }
 
@@ -146,28 +165,26 @@ namespace SevenWondersDuel {
             std::vector<const CardSlot*> availableSlots = model.board->cardStructure.getAvailableCards();
             std::vector<const CardSlot*> validSlots;
             for(auto s : availableSlots) {
-                // 确保有牌且朝上 (处理 Age 2 底部/顶部可用问题：只要逻辑认为是 FaceUp，AI 就可以选)
                 if(s->cardPtr && s->isFaceUp) validSlots.push_back(s);
             }
 
             if (validSlots.empty()) return action;
 
-            // 打乱顺序
             std::shuffle(validSlots.begin(), validSlots.end(), rng);
 
             // --- 策略 A: 尝试建造奇迹 (20% 概率) ---
             std::uniform_int_distribution<int> dice(1, 100);
             if (dice(rng) <= 20 && !me->unbuiltWonders.empty()) {
                 for (auto w : me->unbuiltWonders) {
-                    // 尝试用任意一张可用卡作为垫材
                     for(auto slot : validSlots) {
                         Action tryWonder;
                         tryWonder.type = ActionType::BUILD_WONDER;
                         tryWonder.targetCardId = slot->cardPtr->id;
                         tryWonder.targetWonderId = w->id;
 
-                        // 使用 validateAction 检查钱和资源
                         if (game.validateAction(tryWonder).isValid) {
+                            std::cout << "\033[1;35m[AI] 决定建造奇迹: " << w->name << " (使用卡牌: " << slot->cardPtr->name << ")\033[0m\n";
+                            std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
                             return tryWonder;
                         }
                     }
@@ -180,16 +197,18 @@ namespace SevenWondersDuel {
                 tryBuild.type = ActionType::BUILD_CARD;
                 tryBuild.targetCardId = slot->cardPtr->id;
 
-                // 使用 validateAction 检查所有条件
                 if (game.validateAction(tryBuild).isValid) {
+                    std::cout << "\033[1;35m[AI] 决定建造卡牌: " << slot->cardPtr->name << "\033[0m\n";
+                    std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
                     return tryBuild;
                 }
             }
 
             // --- 策略 C: 弃牌换钱 (Fallback) ---
-            // 只要是 validSlot 里的牌，弃牌总是合法的
             action.type = ActionType::DISCARD_FOR_COINS;
             action.targetCardId = validSlots[0]->cardPtr->id;
+            std::cout << "\033[1;35m[AI] 资源不足，决定弃掉卡牌换钱: " << validSlots[0]->cardPtr->name << "\033[0m\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
             return action;
         }
 

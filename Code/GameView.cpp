@@ -334,15 +334,18 @@ namespace SevenWondersDuel {
             case GameState::WONDER_DRAFT_PHASE_1:
             case GameState::WONDER_DRAFT_PHASE_2:
                 std::cout << "pick <ID>" << std::endl;
+                std::cout << "       ";
                 std::cout << "detail <1/2>" << std::endl;
                 break;
             case GameState::WAITING_FOR_TOKEN_SELECTION_PAIR:
             case GameState::WAITING_FOR_TOKEN_SELECTION_LIB:
                 std::cout << "select <ID> (e.g. select S1)" << std::endl;
+                std::cout << "       ";
                 std::cout << "info <ID>" << std::endl;
                 break;
             case GameState::WAITING_FOR_DESTRUCTION:
                 std::cout << "destroy <ID>" << std::endl;
+                std::cout << "       ";
                 std::cout << "skip" <<std::endl;
                 break;
             case GameState::WAITING_FOR_DISCARD_BUILD:
@@ -353,9 +356,13 @@ namespace SevenWondersDuel {
                 break;
             default:
                 std::cout << "build/discard <CID>" << std::endl;
+                std::cout << "       ";
                 std::cout << "wonder <CID> <WID>" <<std::endl;
+                std::cout << "       ";
                 std::cout << "detail <1/2>" <<std::endl;
+                std::cout << "       ";
                 std::cout << "pile" <<std::endl;
+                std::cout << "       ";
                 std::cout << "info <ID>" <<std::endl;
                 break;
         }
