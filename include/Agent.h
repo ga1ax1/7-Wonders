@@ -10,27 +10,29 @@
 
 namespace SevenWondersDuel {
 
+    class InputManager;
+
 	class IPlayerAgent {
 	public:
 		virtual ~IPlayerAgent() = default;
 		// 核心方法：给定当前模型，返回一个动作
-		virtual Action decideAction(GameController& controller, GameView& view) = 0;
+		virtual Action decideAction(GameController& controller, GameView& view, InputManager& input) = 0;
 
 		// 用于标识
-		virtual bool isHuman() const { return false; }
+		virtual bool isHuman() const;
 	};
 
 	// 人类玩家：通过 View 获取输入
 	class HumanAgent : public IPlayerAgent {
 	public:
-		Action decideAction(GameController& controller, GameView& view) override;
-		bool isHuman() const override { return true; }
+		Action decideAction(GameController& controller, GameView& view, InputManager& input) override;
+		bool isHuman() const override;
 	};
 
 	// AI玩家：简单的随机策略
 	class RandomAIAgent : public IPlayerAgent {
 	public:
-		Action decideAction(GameController& controller, GameView& view) override;
+		Action decideAction(GameController& controller, GameView& view, InputManager& input) override;
 	};
 
 }
