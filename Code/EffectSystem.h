@@ -19,11 +19,17 @@ namespace SevenWondersDuel {
     class Player;
     class Board;
 
-    // Context Interface to decouple EffectSystem from GameController
-    class IEffectContext {
+    // Interface Segregation: Logger Interface
+    class ILogger {
     public:
-        virtual ~IEffectContext() = default;
+        virtual ~ILogger() = default;
         virtual void addLog(const std::string& msg) = 0;
+    };
+
+    // Interface Segregation: Game Actions Interface
+    class IGameActions {
+    public:
+        virtual ~IGameActions() = default;
         virtual void setState(GameState newState) = 0;
         virtual void setPendingDestructionType(CardType t) = 0;
         virtual void grantExtraTurn() = 0;
@@ -39,7 +45,8 @@ namespace SevenWondersDuel {
         virtual ~IEffect() = default;
 
         // 核心：当卡牌/奇迹被建造时触发
-        virtual void apply(Player* self, Player* opponent, IEffectContext* ctx) = 0;
+        // Updated to use segregated interfaces
+        virtual void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) = 0;
 
         // 核心：游戏结束时计算分数
         virtual int calculateScore(const Player* self, const Player* opponent) const { return 0; }
@@ -59,7 +66,7 @@ namespace SevenWondersDuel {
         ProductionEffect(std::map<ResourceType, int> res, bool choice = false, bool tradable = false)
             : producedResources(res), isChoice(choice), isTradable(tradable) {}
 
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override;
         std::string getDescription() const override;
     };
 
@@ -73,7 +80,7 @@ namespace SevenWondersDuel {
         explicit MilitaryEffect(int count, bool fromCard = false)
             : shields(count), isFromCard(fromCard) {}
 
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override;
         std::string getDescription() const override;
     };
 
@@ -84,7 +91,7 @@ namespace SevenWondersDuel {
 
     public:
         explicit ScienceEffect(ScienceSymbol s) : symbol(s) {}
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override;
         std::string getDescription() const override;
     };
 
@@ -95,7 +102,7 @@ namespace SevenWondersDuel {
 
     public:
         explicit VictoryPointEffect(int p) : points(p) {}
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override; // 通常为空
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override; // 通常为空
         int calculateScore(const Player* self, const Player* opponent) const override;
         std::string getDescription() const override;
     };
@@ -107,7 +114,7 @@ namespace SevenWondersDuel {
 
     public:
         explicit CoinEffect(int a) : amount(a) {}
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override;
         std::string getDescription() const override;
     };
 
@@ -122,7 +129,7 @@ namespace SevenWondersDuel {
         CoinsPerTypeEffect(CardType type, int amount, bool wonder = false)
             : targetType(type), coinsPerCard(amount), countWonder(wonder) {}
 
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override;
         std::string getDescription() const override;
     };
 
@@ -133,7 +140,7 @@ namespace SevenWondersDuel {
 
     public:
         explicit TradeDiscountEffect(ResourceType r) : resource(r) {}
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override; // 设置玩家标志位
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override; // 设置玩家标志位
         std::string getDescription() const override;
     };
 
@@ -144,28 +151,28 @@ namespace SevenWondersDuel {
 
     public:
         explicit DestroyCardEffect(CardType color) : targetColor(color) {}
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override; // 触发状态切换
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override; // 触发状态切换
         std::string getDescription() const override;
     };
 
     // 9. 额外回合 (奇迹)
     class ExtraTurnEffect : public IEffect {
     public:
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override;
         std::string getDescription() const override { return "Take another turn immediately."; }
     };
 
     // 10. 从弃牌堆建造 (陵墓)
     class BuildFromDiscardEffect : public IEffect {
     public:
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override;
         std::string getDescription() const override { return "Build a card from discard pile for free."; }
     };
 
     // 11. 发展标记选择 (图书馆)
     class ProgressTokenSelectEffect : public IEffect {
     public:
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override;
         std::string getDescription() const override { return "Choose a progress token from the box."; }
     };
 
@@ -175,7 +182,7 @@ namespace SevenWondersDuel {
         int amount;
     public:
         explicit OpponentLoseCoinsEffect(int a) : amount(a) {}
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override;
         std::string getDescription() const override;
     };
 
@@ -206,7 +213,7 @@ namespace SevenWondersDuel {
     public:
         explicit GuildEffect(GuildCriteria c);
 
-        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
+        void apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) override;
         int calculateScore(const Player* self, const Player* opponent) const override;
         std::string getDescription() const override;
     };

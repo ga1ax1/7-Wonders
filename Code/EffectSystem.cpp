@@ -13,7 +13,7 @@ namespace SevenWondersDuel {
     using namespace TinyJson;
 
     // --- 1. ProductionEffect ---
-    void ProductionEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+    void ProductionEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         if (isChoice) {
             std::vector<ResourceType> choices;
             for (auto const& [type, count] : producedResources) {
@@ -40,22 +40,22 @@ namespace SevenWondersDuel {
     }
 
     // --- 2. MilitaryEffect ---
-    void MilitaryEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+    void MilitaryEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         int finalShields = shields;
 
         // 规则修复：Strategy Token 仅对军事建筑 (Red Cards) 生效，+1 盾
         if (isFromCard && self->getProgressTokens().count(ProgressToken::STRATEGY)) {
             finalShields += 1;
-            ctx->addLog("[Effect] Strategy Token adds +1 Shield.");
+            logger->addLog("[Effect] Strategy Token adds +1 Shield.");
         }
 
-        auto lootEvents = ctx->moveMilitary(finalShields, self->getId());
+        auto lootEvents = actions->moveMilitary(finalShields, self->getId());
 
         for (int amount : lootEvents) {
             // 扣对手的钱
             int loss = std::abs(amount);
             opponent->payCoins(loss);
-            ctx->addLog("[Military] Opponent lost " + std::to_string(loss) + " coins!");
+            logger->addLog("[Military] Opponent lost " + std::to_string(loss) + " coins!");
         }
     }
 
@@ -64,7 +64,7 @@ namespace SevenWondersDuel {
     }
 
     // --- 3. ScienceEffect ---
-    void ScienceEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+    void ScienceEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         self->addScienceSymbol(symbol);
         // 配对逻辑已在 GameController::handleBuildCard 中通过 checkForNewSciencePairs 统一处理
     }
@@ -74,7 +74,7 @@ namespace SevenWondersDuel {
     }
 
     // --- 4. VictoryPointEffect ---
-    void VictoryPointEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+    void VictoryPointEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         // 立即效果无，只计分
     }
 
@@ -87,7 +87,7 @@ namespace SevenWondersDuel {
     }
 
     // --- 5. CoinEffect ---
-    void CoinEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+    void CoinEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         self->gainCoins(amount);
     }
 
@@ -96,7 +96,7 @@ namespace SevenWondersDuel {
     }
 
     // --- 6. CoinsPerTypeEffect (商业/行会) ---
-    void CoinsPerTypeEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+    void CoinsPerTypeEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         int count = 0;
         count += self->getCardCount(targetType);
 
@@ -113,7 +113,7 @@ namespace SevenWondersDuel {
     }
 
     // --- 7. TradeDiscountEffect ---
-    void TradeDiscountEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+    void TradeDiscountEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         self->setTradingDiscount(resource, true);
     }
 
@@ -122,9 +122,9 @@ namespace SevenWondersDuel {
     }
 
     // --- 8. DestroyCardEffect ---
-    void DestroyCardEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
-        ctx->setPendingDestructionType(targetColor);
-        ctx->setState(GameState::WAITING_FOR_DESTRUCTION);
+    void DestroyCardEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
+        actions->setPendingDestructionType(targetColor);
+        actions->setState(GameState::WAITING_FOR_DESTRUCTION);
     }
 
     std::string DestroyCardEffect::getDescription() const {
@@ -132,27 +132,27 @@ namespace SevenWondersDuel {
     }
 
     // --- 9. ExtraTurnEffect ---
-    void ExtraTurnEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
-        ctx->grantExtraTurn();
+    void ExtraTurnEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
+        actions->grantExtraTurn();
     }
 
     // --- 10. BuildFromDiscardEffect ---
-    void BuildFromDiscardEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+    void BuildFromDiscardEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         // [UPDATED] 如果弃牌堆为空，则不触发等待状态，直接记录日志
-        if (ctx->isDiscardPileEmpty()) {
-             ctx->addLog("[Effect] Discard pile is empty. Mausoleum effect skipped.");
+        if (actions->isDiscardPileEmpty()) {
+             logger->addLog("[Effect] Discard pile is empty. Mausoleum effect skipped.");
              return;
         }
-        ctx->setState(GameState::WAITING_FOR_DISCARD_BUILD);
+        actions->setState(GameState::WAITING_FOR_DISCARD_BUILD);
     }
 
     // --- 11. ProgressTokenSelectEffect ---
-    void ProgressTokenSelectEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
-        ctx->setState(GameState::WAITING_FOR_TOKEN_SELECTION_LIB);
+    void ProgressTokenSelectEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
+        actions->setState(GameState::WAITING_FOR_TOKEN_SELECTION_LIB);
     }
 
     // --- 12. OpponentLoseCoinsEffect ---
-    void OpponentLoseCoinsEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+    void OpponentLoseCoinsEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         int loss = std::min(opponent->getCoins(), amount);
         opponent->payCoins(loss);
     }
@@ -242,7 +242,7 @@ namespace SevenWondersDuel {
         }
     }
 
-    void GuildEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+    void GuildEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         int coins = m_strategy->calculateCoins(self, opponent);
         if (coins > 0) self->gainCoins(coins);
     }

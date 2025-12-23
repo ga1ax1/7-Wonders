@@ -34,7 +34,6 @@ namespace SevenWondersDuel {
 
     // 模型聚合根 (Model Layer Root)
     class GameModel {
-        friend class GameController;
     private:
         std::vector<std::unique_ptr<Player>> players;
         std::unique_ptr<Board> board;
@@ -65,10 +64,6 @@ namespace SevenWondersDuel {
         const Player* getCurrentPlayer() const { return players[currentPlayerIndex].get(); }
         const Player* getOpponent() const { return players[1 - currentPlayerIndex].get(); }
         
-        // --- Mutators (Friend/Internal) ---
-        Player* getCurrentPlayerMut() { return players[currentPlayerIndex].get(); }
-        Player* getOpponentMut() { return players[1 - currentPlayerIndex].get(); }
-
         const Board* getBoard() const { return board.get(); }
         const std::vector<std::unique_ptr<Player>>& getPlayers() const { return players; }
         
@@ -83,9 +78,41 @@ namespace SevenWondersDuel {
         const std::vector<Wonder>& getAllWonders() const { return allWonders; }
         const std::vector<std::string>& getGameLog() const { return gameLog; }
 
+        // --- Mutators (Controlled) ---
+        
+        Player* getCurrentPlayerMut() { return players[currentPlayerIndex].get(); }
+        Player* getOpponentMut() { return players[1 - currentPlayerIndex].get(); }
+        Board* getBoardMut() { return board.get(); }
+
+        void clearPlayers() { players.clear(); }
+        void addPlayer(std::unique_ptr<Player> p) { players.push_back(std::move(p)); }
+        
+        void setCurrentAge(int age) { currentAge = age; }
+        void setCurrentPlayerIndex(int index) { currentPlayerIndex = index; }
+        void setWinnerIndex(int index) { winnerIndex = index; }
+        void setVictoryType(VictoryType type) { victoryType = type; }
+
+        void clearDraftPool() { draftPool.clear(); }
+        void addToDraftPool(Wonder* w) { draftPool.push_back(w); }
+        void removeFromDraftPool(const std::string& wonderId) {
+            draftPool.erase(std::remove_if(draftPool.begin(), draftPool.end(),
+                [&](Wonder* w){ return w->getId() == wonderId; }), draftPool.end());
+        }
+
+        void clearRemainingWonders() { remainingWonders.clear(); }
+        void addToRemainingWonders(Wonder* w) { remainingWonders.push_back(w); }
+        void popRemainingWonder() { if (!remainingWonders.empty()) remainingWonders.pop_back(); }
+        Wonder* backRemainingWonder() { return remainingWonders.empty() ? nullptr : remainingWonders.back(); }
+
+        void clearAllCards() { allCards.clear(); }
+        void clearAllWonders() { allWonders.clear(); }
+        std::vector<Card>& getAllCardsMut() { return allCards; }
+        std::vector<Wonder>& getAllWondersMut() { return allWonders; }
+
         void addLog(const std::string& msg) {
             gameLog.push_back(msg);
         }
+        void clearLog() { gameLog.clear(); }
 
         // 获取当前金字塔剩余卡牌数
         int getRemainingCardCount() const {
@@ -98,7 +125,7 @@ namespace SevenWondersDuel {
     };
 
     // 游戏控制器
-    class GameController : public IEffectContext {
+    class GameController : public ILogger, public IGameActions {
     public:
         GameController();
         ~GameController() = default;
@@ -126,7 +153,7 @@ namespace SevenWondersDuel {
         // 返回 true 表示动作成功执行并触发了状态变更
         bool processAction(const Action& action);
 
-        // --- IEffectContext Implementation ---
+        // --- ILogger & IGameActions Implementation ---
 
         void setPendingDestructionType(CardType t) override { pendingDestructionType = t; }
 

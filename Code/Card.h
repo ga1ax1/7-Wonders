@@ -38,7 +38,7 @@ namespace SevenWondersDuel {
     };
 
     // 前向声明
-    class Card; // Added forward declaration
+    class Card;
     class CardPyramid;
     class Board;
     class GameController;
@@ -46,8 +46,6 @@ namespace SevenWondersDuel {
 
     // 用于金字塔布局的节点
     class CardSlot {
-        friend class CardPyramid;
-    
     private:
         std::string m_id;      // 对应 Card 的 ID (Cache)
         Card* m_cardPtr = nullptr;
@@ -72,8 +70,7 @@ namespace SevenWondersDuel {
         int getIndex() const { return m_index; }
         const std::vector<int>& getCoveredBy() const { return m_coveredBy; }
 
-    private:
-        // Setters (仅供 CardPyramid 内部拓扑构建使用)
+        // Mutators
         void setId(const std::string& id) { m_id = id; }
         void setCardPtr(Card* ptr) { m_cardPtr = ptr; }
         void setFaceUp(bool val) { m_isFaceUp = val; }
@@ -83,12 +80,25 @@ namespace SevenWondersDuel {
         
         // 图操作
         void addCoveredBy(int index) { m_coveredBy.push_back(index); }
-        std::vector<int>& getCoveredByMut() { return m_coveredBy; } // 供初始化算法使用
+        
+        // Notify that a covering card was removed. Returns true if this card just became fully uncovered.
+        bool notifyCoveringRemoved(int index) {
+            auto it = std::remove(m_coveredBy.begin(), m_coveredBy.end(), index);
+            if (it != m_coveredBy.end()) {
+                m_coveredBy.erase(it, m_coveredBy.end());
+                if (m_coveredBy.empty()) {
+                    if (!m_isFaceUp) {
+                        m_isFaceUp = true;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
     };
 
     // 卡牌定义
     class Card {
-        friend class DataLoader;
     private:
         std::string m_id;
         std::string m_name;
@@ -118,9 +128,17 @@ namespace SevenWondersDuel {
         const std::string& getRequiresChainTag() const { return m_requiresChainTag; }
         const std::vector<std::shared_ptr<IEffect>>& getEffects() const { return m_effects; }
 
+        // Setters (DataLoader use)
+        void setId(const std::string& id) { m_id = id; }
+        void setName(const std::string& name) { m_name = name; }
+        void setAge(int age) { m_age = age; }
+        void setType(CardType type) { m_type = type; }
+        void setCost(const ResourceCost& cost) { m_cost = cost; }
+        void setChainTag(const std::string& tag) { m_chainTag = tag; }
+        void setRequiresChainTag(const std::string& tag) { m_requiresChainTag = tag; }
+        void setEffects(std::vector<std::shared_ptr<IEffect>> effects) { m_effects = std::move(effects); }
+
         // 辅助方法：获取卡牌的基础分 (直接的分 + 效果计算的分)
-        // 注意：这里只计算直接写在卡面上的分，行会卡等动态分需要传入 Context，
-        // 暂时只提供简单接口，复杂计算在 Player 类中聚合。
         int getVictoryPoints(const Player* self, const Player* opponent) const {
             int total = 0;
             for(const auto& eff : m_effects) {
@@ -132,9 +150,6 @@ namespace SevenWondersDuel {
 
     // 奇迹定义
     class Wonder {
-        friend class DataLoader;
-        friend class Player; // For constructing wonder (state change)
-        // Or better: provide a public method to mutate state
     private:
         std::string m_id;
         std::string m_name;
@@ -158,6 +173,12 @@ namespace SevenWondersDuel {
         bool isBuilt() const { return m_isBuilt; }
         const Card* getBuiltOverlayCard() const { return m_builtOverlayCard; }
 
+        // Setters (DataLoader use)
+        void setId(const std::string& id) { m_id = id; }
+        void setName(const std::string& name) { m_name = name; }
+        void setCost(const ResourceCost& cost) { m_cost = cost; }
+        void setEffects(std::vector<std::shared_ptr<IEffect>> effects) { m_effects = std::move(effects); }
+
         // Mutators
         void build(const Card* overlay) {
             m_isBuilt = true;
@@ -179,9 +200,6 @@ namespace SevenWondersDuel {
             return total;
         }
     };
-
-    // CardSlot class moved to top
-
 
 }
 

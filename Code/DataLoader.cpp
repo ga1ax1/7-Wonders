@@ -57,17 +57,17 @@ namespace SevenWondersDuel {
         const auto& cardsList = root["cards"].asList();
         for (const auto& v : cardsList) {
             Card c;
-            c.m_id = v["id"].asString();
-            c.m_name = v["name"].asString();
-            c.m_age = v["age"].asInt();
-            c.m_type = strToCardType(v["type"].asString());
-            c.m_cost = parseCost(v["cost"]);
-            c.m_chainTag = v["provided_chain"].asString();
-            c.m_requiresChainTag = v["requires_chain"].asString();
+            c.setId(v["id"].asString());
+            c.setName(v["name"].asString());
+            c.setAge(v["age"].asInt());
+            c.setType(strToCardType(v["type"].asString()));
+            c.setCost(parseCost(v["cost"]));
+            c.setChainTag(v["provided_chain"].asString());
+            c.setRequiresChainTag(v["requires_chain"].asString());
 
             // 解析卡牌效果 (Source = Card, True)
             // 使用工厂模式创建效果
-            c.m_effects = EffectFactory::createEffects(v["effects"], c.m_type, true);
+            c.setEffects(EffectFactory::createEffects(v["effects"], c.getType(), true));
             outCards.push_back(c);
         }
 
@@ -75,13 +75,13 @@ namespace SevenWondersDuel {
         const auto& wondersList = root["wonders"].asList();
         for (const auto& v : wondersList) {
             Wonder w;
-            w.m_id = v["id"].asString();
-            w.m_name = v["name"].asString();
-            w.m_cost = parseCost(v["cost"]);
+            w.setId(v["id"].asString());
+            w.setName(v["name"].asString());
+            w.setCost(parseCost(v["cost"]));
 
             // 解析奇迹效果 (Source = Wonder, False)
             // 使用工厂模式创建效果
-            w.m_effects = EffectFactory::createEffects(v["effects"], CardType::WONDER, false);
+            w.setEffects(EffectFactory::createEffects(v["effects"], CardType::WONDER, false));
             outWonders.push_back(w);
         }
 
