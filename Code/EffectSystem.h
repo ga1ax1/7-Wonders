@@ -9,6 +9,7 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <memory>
 
 namespace SevenWondersDuel {
 
@@ -24,7 +25,10 @@ namespace SevenWondersDuel {
         virtual void setState(GameState newState) = 0;
         virtual void setPendingDestructionType(CardType t) = 0;
         virtual void grantExtraTurn() = 0;
-        virtual Board* getBoard() = 0;
+
+        // Abstract Board Operations
+        virtual std::vector<int> moveMilitary(int shields, int playerId) = 0;
+        virtual bool isDiscardPileEmpty() const = 0;
     };
 
     // 效果基类
@@ -185,18 +189,23 @@ namespace SevenWondersDuel {
         COINS              // 双方最多的金币 (/3)
     };
 
+    // Strategy Pattern for Guild Scoring
+    class IGuildStrategy {
+    public:
+        virtual ~IGuildStrategy() = default;
+        virtual int calculateCoins(const Player* self, const Player* opponent) const = 0;
+        virtual int calculateVP(const Player* self, const Player* opponent) const = 0;
+    };
+
     class GuildEffect : public IEffect {
     private:
-        GuildCriteria criteria;
+        std::unique_ptr<IGuildStrategy> m_strategy;
 
     public:
-        explicit GuildEffect(GuildCriteria c) : criteria(c) {}
+        explicit GuildEffect(GuildCriteria c);
 
-        // 立即效果：给钱
         void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
-        // 结束效果：给分
         int calculateScore(const Player* self, const Player* opponent) const override;
-
         std::string getDescription() const override;
     };
 

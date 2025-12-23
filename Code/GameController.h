@@ -132,7 +132,8 @@ namespace SevenWondersDuel {
 
         void setState(GameState newState) override { currentState = newState; }
         
-        Board* getBoard() override { return model->board.get(); }
+        std::vector<int> moveMilitary(int shields, int playerId) override;
+        bool isDiscardPileEmpty() const override;
 
         // 触发再来一回合
         void grantExtraTurn() override { extraTurnPending = true; }

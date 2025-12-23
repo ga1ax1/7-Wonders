@@ -4,7 +4,6 @@
 
 #include "EffectSystem.h"
 #include "Player.h"
-#include "Board.h" // Needed for Board access via Context
 #include <algorithm>
 #include <sstream>
 
@@ -47,7 +46,7 @@ namespace SevenWondersDuel {
             ctx->addLog("[Effect] Strategy Token adds +1 Shield.");
         }
 
-        auto lootEvents = ctx->getBoard()->moveMilitary(finalShields, self->getId());
+        auto lootEvents = ctx->moveMilitary(finalShields, self->getId());
 
         for (int amount : lootEvents) {
             // 扣对手的钱
@@ -137,7 +136,7 @@ namespace SevenWondersDuel {
     // --- 10. BuildFromDiscardEffect ---
     void BuildFromDiscardEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         // [UPDATED] 如果弃牌堆为空，则不触发等待状态，直接记录日志
-        if (ctx->getBoard()->getDiscardPile().empty()) {
+        if (ctx->isDiscardPileEmpty()) {
              ctx->addLog("[Effect] Discard pile is empty. Mausoleum effect skipped.");
              return;
         }
@@ -158,98 +157,95 @@ namespace SevenWondersDuel {
         return "Opponent loses " + std::to_string(amount) + " coins.";
     }
 
-    // --- 13. GuildEffect ---
-    void GuildEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
-        // 立即效果：获得金币 (通常是每张1元)
-        int count = 0;
-        int selfCount = 0;
-        int oppCount = 0;
-        int multiplier = 1; // Default 1 coin per item
+    // --- 13. GuildEffect Strategies ---
 
-        switch (criteria) {
-            case GuildCriteria::YELLOW_CARDS:
-                selfCount = self->getCardCount(CardType::COMMERCIAL);
-                oppCount = opponent->getCardCount(CardType::COMMERCIAL);
-                count = std::max(selfCount, oppCount);
-                break;
-            case GuildCriteria::BLUE_CARDS:
-                selfCount = self->getCardCount(CardType::CIVILIAN);
-                oppCount = opponent->getCardCount(CardType::CIVILIAN);
-                count = std::max(selfCount, oppCount);
-                break;
-            case GuildCriteria::GREEN_CARDS:
-                selfCount = self->getCardCount(CardType::SCIENTIFIC);
-                oppCount = opponent->getCardCount(CardType::SCIENTIFIC);
-                count = std::max(selfCount, oppCount);
-                break;
-            case GuildCriteria::RED_CARDS:
-                selfCount = self->getCardCount(CardType::MILITARY);
-                oppCount = opponent->getCardCount(CardType::MILITARY);
-                count = std::max(selfCount, oppCount);
-                break;
-            case GuildCriteria::BROWN_GREY_CARDS: // Shipowners
-                selfCount = self->getCardCount(CardType::RAW_MATERIAL) + self->getCardCount(CardType::MANUFACTURED);
-                oppCount = opponent->getCardCount(CardType::RAW_MATERIAL) + opponent->getCardCount(CardType::MANUFACTURED);
-                count = std::max(selfCount, oppCount);
-                break;
-            case GuildCriteria::WONDERS: // Builders - No Coins
-                multiplier = 0;
-                break;
-            case GuildCriteria::COINS: // Moneylenders - No Coins
-                multiplier = 0;
-                break;
-            default: break;
+    class CommercialGuildStrategy : public IGuildStrategy {
+    public:
+        int calculateCoins(const Player* self, const Player* opponent) const override {
+            return std::max(self->getCardCount(CardType::COMMERCIAL), opponent->getCardCount(CardType::COMMERCIAL));
         }
+        int calculateVP(const Player* self, const Player* opponent) const override {
+            return calculateCoins(self, opponent);
+        }
+    };
 
-        if (count > 0 && multiplier > 0) {
-            int total = count * multiplier;
-            self->gainCoins(total);
+    class ProductionGuildStrategy : public IGuildStrategy {
+    public:
+        int calculateCoins(const Player* self, const Player* opponent) const override {
+            int sCount = self->getCardCount(CardType::RAW_MATERIAL) + self->getCardCount(CardType::MANUFACTURED);
+            int oCount = opponent->getCardCount(CardType::RAW_MATERIAL) + opponent->getCardCount(CardType::MANUFACTURED);
+            return std::max(sCount, oCount);
+        }
+        int calculateVP(const Player* self, const Player* opponent) const override {
+            return calculateCoins(self, opponent);
+        }
+    };
+
+    class BuildersGuildStrategy : public IGuildStrategy {
+    public:
+        int calculateCoins(const Player* self, const Player* opponent) const override { return 0; }
+        int calculateVP(const Player* self, const Player* opponent) const override {
+            return std::max((int)self->getBuiltWonders().size(), (int)opponent->getBuiltWonders().size()) * 2;
+        }
+    };
+
+    class CivilianGuildStrategy : public IGuildStrategy {
+    public:
+        int calculateCoins(const Player* self, const Player* opponent) const override {
+            return std::max(self->getCardCount(CardType::CIVILIAN), opponent->getCardCount(CardType::CIVILIAN));
+        }
+        int calculateVP(const Player* self, const Player* opponent) const override {
+            return calculateCoins(self, opponent);
+        }
+    };
+
+    class ScientificGuildStrategy : public IGuildStrategy {
+    public:
+        int calculateCoins(const Player* self, const Player* opponent) const override {
+            return std::max(self->getCardCount(CardType::SCIENTIFIC), opponent->getCardCount(CardType::SCIENTIFIC));
+        }
+        int calculateVP(const Player* self, const Player* opponent) const override {
+            return calculateCoins(self, opponent);
+        }
+    };
+
+    class MilitaryGuildStrategy : public IGuildStrategy {
+    public:
+        int calculateCoins(const Player* self, const Player* opponent) const override {
+            return std::max(self->getCardCount(CardType::MILITARY), opponent->getCardCount(CardType::MILITARY));
+        }
+        int calculateVP(const Player* self, const Player* opponent) const override {
+            return calculateCoins(self, opponent);
+        }
+    };
+
+    class MoneylendersGuildStrategy : public IGuildStrategy {
+    public:
+        int calculateCoins(const Player* self, const Player* opponent) const override { return 0; }
+        int calculateVP(const Player* self, const Player* opponent) const override {
+            return std::max(self->getCoins(), opponent->getCoins()) / 3;
+        }
+    };
+
+    GuildEffect::GuildEffect(GuildCriteria c) {
+        switch (c) {
+            case GuildCriteria::YELLOW_CARDS: m_strategy = std::make_unique<CommercialGuildStrategy>(); break;
+            case GuildCriteria::BROWN_GREY_CARDS: m_strategy = std::make_unique<ProductionGuildStrategy>(); break;
+            case GuildCriteria::WONDERS: m_strategy = std::make_unique<BuildersGuildStrategy>(); break;
+            case GuildCriteria::BLUE_CARDS: m_strategy = std::make_unique<CivilianGuildStrategy>(); break;
+            case GuildCriteria::GREEN_CARDS: m_strategy = std::make_unique<ScientificGuildStrategy>(); break;
+            case GuildCriteria::RED_CARDS: m_strategy = std::make_unique<MilitaryGuildStrategy>(); break;
+            case GuildCriteria::COINS: m_strategy = std::make_unique<MoneylendersGuildStrategy>(); break;
         }
     }
 
-    int GuildEffect::calculateScore(const Player* self, const Player* opponent) const {
-        int count = 0;
-        int selfCount = 0;
-        int oppCount = 0;
+    void GuildEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+        int coins = m_strategy->calculateCoins(self, opponent);
+        if (coins > 0) self->gainCoins(coins);
+    }
 
-        switch (criteria) {
-            case GuildCriteria::YELLOW_CARDS:
-                selfCount = self->getCardCount(CardType::COMMERCIAL);
-                oppCount = opponent->getCardCount(CardType::COMMERCIAL);
-                count = std::max(selfCount, oppCount);
-                return count * 1;
-            case GuildCriteria::BLUE_CARDS:
-                selfCount = self->getCardCount(CardType::CIVILIAN);
-                oppCount = opponent->getCardCount(CardType::CIVILIAN);
-                count = std::max(selfCount, oppCount);
-                return count * 1;
-            case GuildCriteria::GREEN_CARDS:
-                selfCount = self->getCardCount(CardType::SCIENTIFIC);
-                oppCount = opponent->getCardCount(CardType::SCIENTIFIC);
-                count = std::max(selfCount, oppCount);
-                return count * 1;
-            case GuildCriteria::RED_CARDS:
-                selfCount = self->getCardCount(CardType::MILITARY);
-                oppCount = opponent->getCardCount(CardType::MILITARY);
-                count = std::max(selfCount, oppCount);
-                return count * 1;
-            case GuildCriteria::BROWN_GREY_CARDS:
-                selfCount = self->getCardCount(CardType::RAW_MATERIAL) + self->getCardCount(CardType::MANUFACTURED);
-                oppCount = opponent->getCardCount(CardType::RAW_MATERIAL) + opponent->getCardCount(CardType::MANUFACTURED);
-                count = std::max(selfCount, oppCount);
-                return count * 1;
-            case GuildCriteria::WONDERS:
-                 selfCount = self->getBuiltWonders().size();
-                 oppCount = opponent->getBuiltWonders().size();
-                 count = std::max(selfCount, oppCount);
-                 return count * 2; // Builders Guild: 2 VP per Wonder
-            case GuildCriteria::COINS:
-                 selfCount = self->getCoins();
-                 oppCount = opponent->getCoins();
-                 count = std::max(selfCount, oppCount);
-                 return count / 3; // Moneylenders: 1 VP per 3 Coins set
-            default: return 0;
-        }
+    int GuildEffect::calculateScore(const Player* self, const Player* opponent) const {
+        return m_strategy->calculateVP(self, opponent);
     }
 
     std::string GuildEffect::getDescription() const { return "Guild Effect"; }

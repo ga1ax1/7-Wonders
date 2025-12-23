@@ -643,4 +643,12 @@ namespace SevenWondersDuel {
         return nullptr;
     }
 
+    std::vector<int> GameController::moveMilitary(int shields, int playerId) {
+        return model->board->moveMilitary(shields, playerId);
+    }
+
+    bool GameController::isDiscardPileEmpty() const {
+        return model->board->getDiscardPile().empty();
+    }
+
 }
