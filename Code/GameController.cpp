@@ -530,7 +530,7 @@ namespace SevenWondersDuel {
 
             bool isAvailable = false;
             auto availableSlots = model->board->getCardStructure().getAvailableCards();
-            for(auto slot : availableSlots) if(slot->cardPtr == target) isAvailable = true;
+            for(auto slot : availableSlots) if(slot->getCardPtr() == target) isAvailable = true;
             if (!isAvailable) { result.message = "Card is currently covered"; return result; }
 
             if (action.type == ActionType::BUILD_CARD) {

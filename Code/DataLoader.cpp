@@ -19,11 +19,11 @@ namespace SevenWondersDuel {
         ResourceCost cost;
         if (v.asObject().empty()) return cost;
 
-        cost.coins = v["coins"].asInt();
+        cost.setCoins(v["coins"].asInt());
 
         const auto& resObj = v["resources"].asObject();
         for (const auto& [key, val] : resObj) {
-            cost.resources[strToResource(key)] = val.asInt();
+            cost.addResource(strToResource(key), val.asInt());
         }
         return cost;
     }

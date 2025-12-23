@@ -97,8 +97,8 @@ namespace SevenWondersDuel {
 
     std::string GameView::formatCost(const ResourceCost& cost) {
         std::stringstream ss;
-        if(cost.coins > 0) ss << "$" << cost.coins << " ";
-        for(auto [r,v]: cost.resources) { if(v>0) ss << v << resourceName(r).substr(0,1) << " "; }
+        if(cost.getCoins() > 0) ss << "$" << cost.getCoins() << " ";
+        for(auto [r,v]: cost.getResources()) { if(v>0) ss << v << resourceName(r).substr(0,1) << " "; }
         std::string s = ss.str(); return s.empty() ? "Free" : s;
     }
 
@@ -278,8 +278,8 @@ namespace SevenWondersDuel {
         std::map<int, std::vector<const CardSlot*>> rows;
         int maxRow = 0;
         for (const auto& slot : slots) {
-            rows[slot.row].push_back(&slot);
-            if (slot.row > maxRow) maxRow = slot.row;
+            rows[slot.getRow()].push_back(&slot);
+            if (slot.getRow() > maxRow) maxRow = slot.getRow();
         }
 
         for (int r = 0; r <= maxRow; ++r) {
@@ -301,10 +301,10 @@ namespace SevenWondersDuel {
                 const auto* slot = rowSlots[i];
                 int absIndex = (&(*slot) - &slots[0]) + 1;
 
-                if (slot->isRemoved) std::cout << "           ";
-                else if (!slot->isFaceUp) std::cout << " [\033[90m ? ? ? \033[0m] ";
+                if (slot->isRemoved()) std::cout << "           ";
+                else if (!slot->isFaceUp()) std::cout << " [\033[90m ? ? ? \033[0m] ";
                 else {
-                    Card* c = slot->cardPtr;
+                    Card* c = slot->getCardPtr();
                     ctx.cardIdMap[absIndex] = c->getId();
                     std::string label = " C" + std::to_string(absIndex) + " ";
                     while(label.length() < 7) label += " ";

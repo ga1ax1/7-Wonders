@@ -17,11 +17,73 @@ namespace SevenWondersDuel {
     class DataLoader; // Forward declaration
 
     // 统一费用结构
-    struct ResourceCost {
-        int coins = 0;
-        std::map<ResourceType, int> resources;
+    class ResourceCost {
+    private:
+        int m_coins = 0;
+        std::map<ResourceType, int> m_resources;
 
-        bool isFree() const { return coins == 0 && resources.empty(); }
+    public:
+        ResourceCost() = default;
+        
+        // Getters
+        int getCoins() const { return m_coins; }
+        const std::map<ResourceType, int>& getResources() const { return m_resources; }
+        
+        // Setters
+        void setCoins(int coins) { m_coins = coins; }
+        void setResources(const std::map<ResourceType, int>& res) { m_resources = res; }
+        void addResource(ResourceType type, int count) { m_resources[type] += count; }
+
+        bool isFree() const { return m_coins == 0 && m_resources.empty(); }
+    };
+
+    // 前向声明
+    class Card; // Added forward declaration
+    class CardPyramid;
+    class Board;
+    class GameController;
+    class GameView;
+
+    // 用于金字塔布局的节点
+    class CardSlot {
+        friend class CardPyramid;
+    
+    private:
+        std::string m_id;      // 对应 Card 的 ID (Cache)
+        Card* m_cardPtr = nullptr;
+        bool m_isFaceUp = false;
+        bool m_isRemoved = false;
+
+        int m_row = 0;
+        int m_index = 0; // 行内索引
+
+        // 图结构依赖
+        std::vector<int> m_coveredBy; // 压着我的牌的 Slot 索引
+
+    public:
+        CardSlot() = default;
+
+        // Getters
+        const std::string& getId() const { return m_id; }
+        Card* getCardPtr() const { return m_cardPtr; }
+        bool isFaceUp() const { return m_isFaceUp; }
+        bool isRemoved() const { return m_isRemoved; }
+        int getRow() const { return m_row; }
+        int getIndex() const { return m_index; }
+        const std::vector<int>& getCoveredBy() const { return m_coveredBy; }
+
+    private:
+        // Setters (仅供 CardPyramid 内部拓扑构建使用)
+        void setId(const std::string& id) { m_id = id; }
+        void setCardPtr(Card* ptr) { m_cardPtr = ptr; }
+        void setFaceUp(bool val) { m_isFaceUp = val; }
+        void setRemoved(bool val) { m_isRemoved = val; }
+        void setRow(int r) { m_row = r; }
+        void setIndex(int i) { m_index = i; }
+        
+        // 图操作
+        void addCoveredBy(int index) { m_coveredBy.push_back(index); }
+        std::vector<int>& getCoveredByMut() { return m_coveredBy; } // 供初始化算法使用
     };
 
     // 卡牌定义
@@ -118,21 +180,8 @@ namespace SevenWondersDuel {
         }
     };
 
-    // 用于金字塔布局的节点
-    // CardSlot keeps public members as it functions more like a struct used internally by Board/Pyramid
-    // However, we should use getters for card access if we want consistency.
-    struct CardSlot {
-        std::string id;      // 对应 Card 的 ID (Cache)
-        Card* cardPtr = nullptr;
-        bool isFaceUp = false;
-        bool isRemoved = false;
+    // CardSlot class moved to top
 
-        int row = 0;
-        int index = 0; // 行内索引
-
-        // 图结构依赖
-        std::vector<int> coveredBy; // 压着我的牌的 Slot 索引
-    };
 
 }
 

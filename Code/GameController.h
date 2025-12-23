@@ -91,7 +91,7 @@ namespace SevenWondersDuel {
         int getRemainingCardCount() const {
             int count = 0;
             for(const auto& slot : board->getCardStructure().getSlots()) {
-                if (!slot.isRemoved) count++;
+                if (!slot.isRemoved()) count++;
             }
             return count;
         }

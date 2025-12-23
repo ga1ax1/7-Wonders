@@ -165,7 +165,7 @@ namespace SevenWondersDuel {
             std::vector<const CardSlot*> availableSlots = model.getBoard()->getCardStructure().getAvailableCards();
             std::vector<const CardSlot*> validSlots;
             for(auto s : availableSlots) {
-                if(s->cardPtr && s->isFaceUp) validSlots.push_back(s);
+                if(s->getCardPtr() && s->isFaceUp()) validSlots.push_back(s);
             }
 
             if (validSlots.empty()) return action;
@@ -179,11 +179,11 @@ namespace SevenWondersDuel {
                     for(auto slot : validSlots) {
                         Action tryWonder;
                         tryWonder.type = ActionType::BUILD_WONDER;
-                        tryWonder.targetCardId = slot->cardPtr->getId();
+                        tryWonder.targetCardId = slot->getCardPtr()->getId();
                         tryWonder.targetWonderId = w->getId();
 
                         if (game.validateAction(tryWonder).isValid) {
-                            std::cout << "\033[1;35m[AI] 决定建造奇迹: " << w->getName() << " (使用卡牌: " << slot->cardPtr->getName() << ")\033[0m\n";
+                            std::cout << "\033[1;35m[AI] 决定建造奇迹: " << w->getName() << " (使用卡牌: " << slot->getCardPtr()->getName() << ")\033[0m\n";
                             std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
                             return tryWonder;
                         }
@@ -195,10 +195,10 @@ namespace SevenWondersDuel {
             for (auto slot : validSlots) {
                 Action tryBuild;
                 tryBuild.type = ActionType::BUILD_CARD;
-                tryBuild.targetCardId = slot->cardPtr->getId();
+                tryBuild.targetCardId = slot->getCardPtr()->getId();
 
                 if (game.validateAction(tryBuild).isValid) {
-                    std::cout << "\033[1;35m[AI] 决定建造卡牌: " << slot->cardPtr->getName() << "\033[0m\n";
+                    std::cout << "\033[1;35m[AI] 决定建造卡牌: " << slot->getCardPtr()->getName() << "\033[0m\n";
                     std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
                     return tryBuild;
                 }
@@ -206,8 +206,8 @@ namespace SevenWondersDuel {
 
             // --- 策略 C: 弃牌换钱 (Fallback) ---
             action.type = ActionType::DISCARD_FOR_COINS;
-            action.targetCardId = validSlots[0]->cardPtr->getId();
-            std::cout << "\033[1;35m[AI] 资源不足，决定弃掉卡牌换钱: " << validSlots[0]->cardPtr->getName() << "\033[0m\n";
+            action.targetCardId = validSlots[0]->getCardPtr()->getId();
+            std::cout << "\033[1;35m[AI] 资源不足，决定弃掉卡牌换钱: " << validSlots[0]->getCardPtr()->getName() << "\033[0m\n";
             std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 决策后暂停
             return action;
         }

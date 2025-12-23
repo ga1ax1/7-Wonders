@@ -19,9 +19,6 @@ namespace SevenWondersDuel {
 
     // 军事轨道
     class MilitaryTrack {
-        friend class Board;
-        friend class GameController; // Temporary friend until fully refactored
-        friend class GameView; // Needs access to render
     private:
         int m_position = 0; // 范围 -9 (P1胜利) 到 +9 (P2胜利)
 
@@ -90,10 +87,6 @@ namespace SevenWondersDuel {
 
     // 金字塔结构管理
     class CardPyramid {
-        friend class Board;
-        friend class GameController;
-        friend class GameView;
-        friend class GameModel;
     private:
         std::vector<CardSlot> m_slots;
 
@@ -144,7 +137,7 @@ namespace SevenWondersDuel {
         std::vector<const CardSlot*> getAvailableCards() const {
             std::vector<const CardSlot*> available;
             for (const auto& slot : m_slots) {
-                if (!slot.isRemoved && slot.coveredBy.empty()) {
+                if (!slot.isRemoved() && slot.getCoveredBy().empty()) {
                     available.push_back(&slot);
                 }
             }
@@ -156,10 +149,10 @@ namespace SevenWondersDuel {
             int removedIdx = -1;
 
             for (int i = 0; i < m_slots.size(); ++i) {
-                if (m_slots[i].id == cardId || (m_slots[i].cardPtr && m_slots[i].cardPtr->getId() == cardId)) {
-                    if (m_slots[i].isRemoved) return nullptr; // 已经被移除了
-                    m_slots[i].isRemoved = true;
-                    removedCard = m_slots[i].cardPtr;
+                if (m_slots[i].getId() == cardId || (m_slots[i].getCardPtr() && m_slots[i].getCardPtr()->getId() == cardId)) {
+                    if (m_slots[i].isRemoved()) return nullptr; // 已经被移除了
+                    m_slots[i].setRemoved(true);
+                    removedCard = m_slots[i].getCardPtr();
                     removedIdx = i;
                     break;
                 }
@@ -169,15 +162,22 @@ namespace SevenWondersDuel {
 
             // 更新依赖
             for (auto& s : m_slots) {
-                if (s.isRemoved) continue;
+                if (s.isRemoved()) continue;
 
-                auto it = std::remove(s.coveredBy.begin(), s.coveredBy.end(), removedIdx);
-                if (it != s.coveredBy.end()) {
-                    s.coveredBy.erase(it, s.coveredBy.end());
+                // 由于 coveredBy 是私有的且我们只有 const getter 和 add/init 方法，
+                // 这里作为友元类，我们还是直接访问 m_coveredBy 比较方便，或者添加一个 removeCoveredBy 方法。
+                // 鉴于 CardSlot 是为 Board 服务的，直接访问 m_coveredBy (friend) 是可接受的，但为了保持一致性，使用 m_ 前缀。
+                // 不过既然我已经把 CardSlot 改为了 class 并且有 getter，我尽量使用 getter。
+                // 但是对于修改 vector，我需要 mut access。
+                
+                auto& coveredBy = s.getCoveredByMut();
+                auto it = std::remove(coveredBy.begin(), coveredBy.end(), removedIdx);
+                if (it != coveredBy.end()) {
+                    coveredBy.erase(it, coveredBy.end());
 
                     // [核心机制] 翻牌逻辑
-                    if (s.coveredBy.empty() && !s.isFaceUp) {
-                        s.isFaceUp = true;
+                    if (coveredBy.empty() && !s.isFaceUp()) {
+                        s.setFaceUp(true);
                     }
                 }
             }
@@ -189,11 +189,11 @@ namespace SevenWondersDuel {
             for (int i = 0; i < count; ++i) {
                 if (deckIdx >= deck.size()) break;
                 CardSlot slot;
-                slot.cardPtr = deck[deckIdx++];
-                slot.id = slot.cardPtr->getId();
-                slot.isFaceUp = faceUp;
-                slot.row = row;
-                slot.index = i;
+                slot.setCardPtr(deck[deckIdx++]);
+                slot.setId(slot.getCardPtr()->getId());
+                slot.setFaceUp(faceUp);
+                slot.setRow(row);
+                slot.setIndex(i);
                 m_slots.push_back(slot);
             }
         }
@@ -205,7 +205,7 @@ namespace SevenWondersDuel {
         std::vector<CardSlot*> getSlotsByRow(int r) {
             std::vector<CardSlot*> res;
             for (auto& s : m_slots) {
-                if (s.row == r) res.push_back(&s);
+                if (s.getRow() == r) res.push_back(&s);
             }
             return res;
         }
@@ -220,8 +220,8 @@ namespace SevenWondersDuel {
                 auto lower = getSlotsByRow(r+1);
 
                 for (int k = 0; k < upper.size(); ++k) {
-                    if (k < lower.size()) upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
-                    if (k+1 < lower.size()) upper[k]->coveredBy.push_back(getAbsIndex(lower[k+1]));
+                    if (k < lower.size()) upper[k]->addCoveredBy(getAbsIndex(lower[k]));
+                    if (k+1 < lower.size()) upper[k]->addCoveredBy(getAbsIndex(lower[k+1]));
                 }
             }
         }
@@ -238,11 +238,11 @@ namespace SevenWondersDuel {
                 for (int k = 0; k < lower.size(); ++k) {
                     // Upper[k] 被 Lower[k] 遮挡
                     if (k < upper.size()) {
-                        upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
+                        upper[k]->addCoveredBy(getAbsIndex(lower[k]));
                     }
                     // Upper[k+1] 被 Lower[k] 遮挡
                     if (k+1 < upper.size()) {
-                        upper[k+1]->coveredBy.push_back(getAbsIndex(lower[k]));
+                        upper[k+1]->addCoveredBy(getAbsIndex(lower[k]));
                     }
                 }
             }
@@ -262,12 +262,12 @@ namespace SevenWondersDuel {
                     // L[0] blocks U[0], U[1]
                     // L[1] blocks U[2], U[3]
                     if (lower.size() > 0 && upper.size() > 1) {
-                        upper[0]->coveredBy.push_back(getAbsIndex(lower[0]));
-                        upper[1]->coveredBy.push_back(getAbsIndex(lower[0]));
+                        upper[0]->addCoveredBy(getAbsIndex(lower[0]));
+                        upper[1]->addCoveredBy(getAbsIndex(lower[0]));
                     }
                     if (lower.size() > 1 && upper.size() > 3) {
-                        upper[2]->coveredBy.push_back(getAbsIndex(lower[1]));
-                        upper[3]->coveredBy.push_back(getAbsIndex(lower[1]));
+                        upper[2]->addCoveredBy(getAbsIndex(lower[1]));
+                        upper[3]->addCoveredBy(getAbsIndex(lower[1]));
                     }
                 }
                 // Row 3 (2 cards) covered by Row 4 (4 cards) -> Split Logic
@@ -275,12 +275,12 @@ namespace SevenWondersDuel {
                     // U[0] blocked by L[0], L[1]
                     // U[1] blocked by L[2], L[3]
                     if (upper.size() > 0 && lower.size() > 1) {
-                        upper[0]->coveredBy.push_back(getAbsIndex(lower[0]));
-                        upper[0]->coveredBy.push_back(getAbsIndex(lower[1]));
+                        upper[0]->addCoveredBy(getAbsIndex(lower[0]));
+                        upper[0]->addCoveredBy(getAbsIndex(lower[1]));
                     }
                     if (upper.size() > 1 && lower.size() > 3) {
-                        upper[1]->coveredBy.push_back(getAbsIndex(lower[2]));
-                        upper[1]->coveredBy.push_back(getAbsIndex(lower[3]));
+                        upper[1]->addCoveredBy(getAbsIndex(lower[2]));
+                        upper[1]->addCoveredBy(getAbsIndex(lower[3]));
                     }
                 }
                 // 其他情况：通用逻辑
@@ -288,22 +288,22 @@ namespace SevenWondersDuel {
                     // 宽行被窄行遮挡 (如 3 被 2 遮，4 被 3 遮)
                     // Lower[k] 遮挡 Upper[k] 和 Upper[k+1]
                     for (int k = 0; k < lower.size(); ++k) {
-                        if (k < upper.size()) upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
-                        if (k+1 < upper.size()) upper[k+1]->coveredBy.push_back(getAbsIndex(lower[k]));
+                        if (k < upper.size()) upper[k]->addCoveredBy(getAbsIndex(lower[k]));
+                        if (k+1 < upper.size()) upper[k+1]->addCoveredBy(getAbsIndex(lower[k]));
                     }
                 }
                 else if (upper.size() < lower.size()) {
                     // 窄行被宽行遮挡 (如 2 被 3 遮，3 被 4 遮)
                     // Upper[k] 被 Lower[k] 和 Lower[k+1] 遮挡
                     for (int k = 0; k < upper.size(); ++k) {
-                        if (k < lower.size()) upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
-                        if (k+1 < lower.size()) upper[k]->coveredBy.push_back(getAbsIndex(lower[k+1]));
+                        if (k < lower.size()) upper[k]->addCoveredBy(getAbsIndex(lower[k]));
+                        if (k+1 < lower.size()) upper[k]->addCoveredBy(getAbsIndex(lower[k+1]));
                     }
                 }
                 else {
                     // 等宽
                      for (int k = 0; k < upper.size(); ++k) {
-                        upper[k]->coveredBy.push_back(getAbsIndex(lower[k]));
+                        upper[k]->addCoveredBy(getAbsIndex(lower[k]));
                     }
                 }
             }
@@ -311,9 +311,6 @@ namespace SevenWondersDuel {
     };
 
     class Board {
-        friend class GameController;
-        friend class GameView;
-        friend class GameModel;
         // Effect classes need access to specific features, but we should use public methods if possible.
         // For now, we will add specific methods for them.
     private:

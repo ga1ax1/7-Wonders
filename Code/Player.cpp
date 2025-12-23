@@ -141,13 +141,13 @@ namespace SevenWondersDuel {
 
     std::pair<bool, int> Player::calculateCost(const ResourceCost& cost, const Player& opponent, CardType targetType) const {
         // 1. 基础金币检查 (如果只需要金币)
-        if (cost.resources.empty()) {
-            if (m_coins < cost.coins) return { false, cost.coins };
-            return { true, cost.coins };
+        if (cost.getResources().empty()) {
+            if (m_coins < cost.getCoins()) return { false, cost.getCoins() };
+            return { true, cost.getCoins() };
         }
 
         // 2. 准备计算资源缺口
-        std::map<ResourceType, int> deficit = cost.resources;
+        std::map<ResourceType, int> deficit = cost.getResources();
 
         // 3. 扣除固定产出
         for (auto it = deficit.begin(); it != deficit.end(); ) {
@@ -205,8 +205,8 @@ namespace SevenWondersDuel {
 
         // 如果扣除固定产出和科技减免后没缺口了，且金币够
         if (deficit.empty()) {
-            if (m_coins < cost.coins) return { false, cost.coins };
-            return { true, cost.coins };
+            if (m_coins < cost.getCoins()) return { false, cost.getCoins() };
+            return { true, cost.getCoins() };
         }
 
         // 4. 利用多选一资源填补剩余缺口 (寻找最小交易费)
@@ -215,7 +215,7 @@ namespace SevenWondersDuel {
         solveMinCost(deficit, 0, m_choiceResources, opponent, *this, minTradingCost);
 
         // 5. 汇总结果
-        int totalRequired = cost.coins + minTradingCost;
+        int totalRequired = cost.getCoins() + minTradingCost;
         bool canAfford = (m_coins >= totalRequired);
 
         return { canAfford, totalRequired };
