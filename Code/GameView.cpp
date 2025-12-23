@@ -104,15 +104,15 @@ namespace SevenWondersDuel {
 
     std::string GameView::formatResourcesCompact(const Player& p) {
         std::stringstream ss;
-        ss << "W:" << p.fixedResources.at(ResourceType::WOOD) << " ";
-        ss << "C:" << p.fixedResources.at(ResourceType::CLAY) << " ";
-        ss << "S:" << p.fixedResources.at(ResourceType::STONE) << " ";
-        ss << "G:" << p.fixedResources.at(ResourceType::GLASS) << " ";
-        ss << "P:" << p.fixedResources.at(ResourceType::PAPER);
+        ss << "W:" << p.getFixedResources().at(ResourceType::WOOD) << " ";
+        ss << "C:" << p.getFixedResources().at(ResourceType::CLAY) << " ";
+        ss << "S:" << p.getFixedResources().at(ResourceType::STONE) << " ";
+        ss << "G:" << p.getFixedResources().at(ResourceType::GLASS) << " ";
+        ss << "P:" << p.getFixedResources().at(ResourceType::PAPER);
 
-        if (!p.choiceResources.empty()) {
+        if (!p.getChoiceResources().empty()) {
             ss << " \033[93m+";
-            for (const auto& choices : p.choiceResources) {
+            for (const auto& choices : p.getChoiceResources()) {
                 ss << "(";
                 for (size_t i = 0; i < choices.size(); ++i) {
                     if (i > 0) ss << "/";
@@ -128,7 +128,7 @@ namespace SevenWondersDuel {
     std::string formatScienceSymbols(const Player& p) {
         std::stringstream ss;
         bool hasAny = false;
-        for (auto const& [sym, count] : p.scienceSymbols) {
+        for (auto const& [sym, count] : p.getScienceSymbols()) {
             if (sym == ScienceSymbol::NONE || count == 0) continue;
             hasAny = true;
             std::string sName;
@@ -172,7 +172,7 @@ namespace SevenWondersDuel {
     // ==========================================================
 
     void GameView::renderMilitaryTrack(const Board& board) {
-        int pos = board.militaryTrack.position;
+        int pos = board.getMilitaryTrack().getPosition();
         std::stringstream ss;
         ss << "        P1  ";
         for (int i = -9; i <= 9; ++i) {
@@ -182,12 +182,15 @@ namespace SevenWondersDuel {
         }
         ss << " P2";
         std::cout << ss.str() << "\n";
+        
+        const bool* tokens = board.getMilitaryTrack().getLootTokens();
+
         std::cout << "            "
-                  << (board.militaryTrack.lootTokens[1] ? "[$ 5] " : "      ")
-                  << (board.militaryTrack.lootTokens[0] ? "[$ 2]" : "     ")
+                  << (tokens[1] ? "[$ 5] " : "      ")
+                  << (tokens[0] ? "[$ 2]" : "     ")
                   << "               "
-                  << (board.militaryTrack.lootTokens[2] ? "[$ 2] " : "      ")
-                  << (board.militaryTrack.lootTokens[3] ? "[$ 5]" : "     ") << "\n";
+                  << (tokens[2] ? "[$ 2] " : "      ")
+                  << (tokens[3] ? "[$ 5]" : "     ") << "\n";
     }
 
     void GameView::renderProgressTokens(const std::vector<ProgressToken>& tokens, bool isBoxContext) {
@@ -209,22 +212,22 @@ namespace SevenWondersDuel {
 
     void GameView::renderHeader(const GameModel& model) {
         std::stringstream ss;
-        ss << "[ 7 WONDERS DUEL - AGE " << model.currentAge << " ]";
+        ss << "[ 7 WONDERS DUEL - AGE " << model.getCurrentAge() << " ]";
         printLine('=');
         printCentered("\033[1;37m" + ss.str() + "\033[0m");
-        renderMilitaryTrack(*model.board);
-        renderProgressTokens(model.board->availableProgressTokens, false);
+        renderMilitaryTrack(*model.getBoard());
+        renderProgressTokens(model.getBoard()->getAvailableProgressTokens(), false);
         printLine('-');
     }
 
     void GameView::renderPlayerDashboard(const Player& p, bool isCurrent, const Player& opp, int& wonderCounter, bool targetMode) {
-        std::string nameTag = isCurrent ? ("\033[1;36m[" + p.name + "]\033[0m") : ("[" + p.name + "]");
-        if (targetMode) nameTag = "\033[1;31m[TARGET: " + p.name + "]\033[0m";
+        std::string nameTag = isCurrent ? ("\033[1;36m[" + p.getName() + "]\033[0m") : ("[" + p.getName() + "]");
+        if (targetMode) nameTag = "\033[1;31m[TARGET: " + p.getName() + "]\033[0m";
 
-        int displayVP = p.getScore(opp) - (p.coins/3);
+        int displayVP = p.getScore(opp) - (p.getCoins()/3);
 
         std::cout << nameTag
-                  << " Coin:\033[33m" << p.coins << "\033[0m"
+                  << " Coin:\033[33m" << p.getCoins() << "\033[0m"
                   << " VP:\033[36m" << displayVP << "\033[0m "
                   << formatResourcesCompact(p) << "\n";
 
@@ -234,15 +237,15 @@ namespace SevenWondersDuel {
         }
 
         std::cout << "Wonder: ";
-        for(auto w : p.builtWonders) {
+        for(auto w : p.getBuiltWonders()) {
             int currentId = wonderCounter++;
-            ctx.wonderIdMap[currentId] = w->id;
-            std::cout << "\033[32m[W" << currentId << "][X]" << w->name << "\033[0m  ";
+            ctx.wonderIdMap[currentId] = w->getId();
+            std::cout << "\033[32m[W" << currentId << "][X]" << w->getName() << "\033[0m  ";
         }
-        for(auto w : p.unbuiltWonders) {
+        for(auto w : p.getUnbuiltWonders()) {
             int currentId = wonderCounter++;
-            ctx.wonderIdMap[currentId] = w->id;
-            std::cout << "[W" << currentId << "][ ]" << w->name << "  ";
+            ctx.wonderIdMap[currentId] = w->getId();
+            std::cout << "[W" << currentId << "][ ]" << w->getName() << "  ";
         }
         std::cout << "\n";
 
@@ -250,11 +253,11 @@ namespace SevenWondersDuel {
             ctx.oppCardIdMap.clear();
             std::cout << "Built Cards (Select to Destroy): \n";
             int idx = 1;
-            for(auto c : p.builtCards) {
+            for(auto c : p.getBuiltCards()) {
                 std::string idStr = "T" + std::to_string(idx);
-                ctx.oppCardIdMap[idx] = c->id;
+                ctx.oppCardIdMap[idx] = c->getId();
 
-                std::cout << "  [" << idStr << "] " << getTypeStr(c->type) << " " << c->name;
+                std::cout << "  [" << idStr << "] " << getTypeStr(c->getType()) << " " << c->getName();
                 if (idx % 3 == 0) std::cout << "\n";
                 idx++;
             }
@@ -265,9 +268,9 @@ namespace SevenWondersDuel {
     }
 
     void GameView::renderPyramid(const GameModel& model) {
-        std::cout << "           PYRAMID (" << model.getRemainingCardCount() << ") | DISCARD (" << model.board->discardPile.size() << ")\n";
+        std::cout << "           PYRAMID (" << model.getRemainingCardCount() << ") | DISCARD (" << model.getBoard()->getDiscardPile().size() << ")\n";
 
-        const auto& slots = model.board->cardStructure.slots;
+        const auto& slots = model.getBoard()->getCardStructure().getSlots();
         if (slots.empty()) return;
 
         ctx.cardIdMap.clear();
@@ -286,7 +289,7 @@ namespace SevenWondersDuel {
             int cardWidth = 11;
             int rowLen = rowSlots.size() * cardWidth;
 
-            bool isAge3SplitRow = (model.currentAge == 3 && r == 3);
+            bool isAge3SplitRow = (model.getCurrentAge() == 3 && r == 3);
             if (isAge3SplitRow) {
                 rowLen += cardWidth;
             }
@@ -302,10 +305,10 @@ namespace SevenWondersDuel {
                 else if (!slot->isFaceUp) std::cout << " [\033[90m ? ? ? \033[0m] ";
                 else {
                     Card* c = slot->cardPtr;
-                    ctx.cardIdMap[absIndex] = c->id;
+                    ctx.cardIdMap[absIndex] = c->getId();
                     std::string label = " C" + std::to_string(absIndex) + " ";
                     while(label.length() < 7) label += " ";
-                    std::cout << " [" << getCardColorCode(c->type) << label << getResetColor() << "] ";
+                    std::cout << " [" << getCardColorCode(c->getType()) << label << getResetColor() << "] ";
                 }
 
                 if (isAge3SplitRow && i == 0) {
@@ -376,22 +379,22 @@ namespace SevenWondersDuel {
         clearScreen();
         printLine('='); printCentered("\033[1;36mWONDER DRAFT\033[0m"); printLine('=');
         const Player* p = model.getCurrentPlayer();
-        std::cout << "  \033[1;33m[" << p->name << "]\033[0m Choose a Wonder:\n";
+        std::cout << "  \033[1;33m[" << p->getName() << "]\033[0m Choose a Wonder:\n";
 
         ctx.draftWonderIds.clear();
         int idx = 1;
-        for (const auto& w : model.draftPool) {
-            ctx.draftWonderIds.push_back(w->id);
-            std::cout << "  [" << idx << "] \033[1;37m" << std::left << std::setw(20) << w->name << "\033[0m";
-            std::cout << " Cost: " << formatCost(w->cost) << " ";
-            std::cout << " Eff: "; for(auto& eff : w->effects) std::cout << eff->getDescription() << " ";
+        for (const auto& w : model.getDraftPool()) {
+            ctx.draftWonderIds.push_back(w->getId());
+            std::cout << "  [" << idx << "] \033[1;37m" << std::left << std::setw(20) << w->getName() << "\033[0m";
+            std::cout << " Cost: " << formatCost(w->getCost()) << " ";
+            std::cout << " Eff: "; for(auto& eff : w->getEffects()) std::cout << eff->getDescription() << " ";
             std::cout << "\n";
             idx++;
         }
         printLine('-');
-        renderActionLog(model.gameLog);
+        renderActionLog(model.getGameLog());
         renderErrorMessage();
-        renderCommandHelp(model.currentPlayerIndex == 0 ? GameState::WONDER_DRAFT_PHASE_1 : GameState::WONDER_DRAFT_PHASE_1);
+        renderCommandHelp(model.getCurrentPlayerIndex() == 0 ? GameState::WONDER_DRAFT_PHASE_1 : GameState::WONDER_DRAFT_PHASE_1);
     }
 
     void GameView::renderTokenSelection(const GameModel& model, bool fromBox) {
@@ -400,15 +403,15 @@ namespace SevenWondersDuel {
 
         if (fromBox) {
             std::cout << "  Source: \033[33mGame Box (Library Effect)\033[0m\n";
-            renderProgressTokens(model.board->boxProgressTokens, true); // true = box context
+            renderProgressTokens(model.getBoard()->getBoxProgressTokens(), true); // true = box context
         } else {
             std::cout << "  Source: \033[33mBoard (Science Pair)\033[0m\n";
-            renderProgressTokens(model.board->availableProgressTokens, false);
+            renderProgressTokens(model.getBoard()->getAvailableProgressTokens(), false);
         }
         printLine('-');
 
         // [Update] 增加日志显示，这样玩家知道为什么触发了选择
-        renderActionLog(model.gameLog);
+        renderActionLog(model.getGameLog());
 
         renderErrorMessage();
         renderCommandHelp(fromBox ? GameState::WAITING_FOR_TOKEN_SELECTION_LIB : GameState::WAITING_FOR_TOKEN_SELECTION_PAIR);
@@ -429,15 +432,15 @@ namespace SevenWondersDuel {
         clearScreen();
         printLine('='); printCentered("\033[1;35mMAUSOLEUM: RESURRECT CARD\033[0m"); printLine('=');
 
-        const auto& pile = model.board->discardPile;
+        const auto& pile = model.getBoard()->getDiscardPile();
         ctx.discardIdMap.clear();
         int idx = 1;
 
         if (pile.empty()) std::cout << "  (Discard pile is empty)\n";
 
         for(auto c : pile) {
-            ctx.discardIdMap[idx] = c->id;
-            std::cout << "  [D" << idx++ << "] " << c->name << " (" << getTypeStr(c->type) << ")\n";
+            ctx.discardIdMap[idx] = c->getId();
+            std::cout << "  [D" << idx++ << "] " << c->getName() << " (" << getTypeStr(c->getType()) << ")\n";
         }
         printLine('-');
         renderErrorMessage();
@@ -447,11 +450,11 @@ namespace SevenWondersDuel {
     void GameView::renderStartPlayerSelect(const GameModel& model) {
         clearScreen();
         printLine('='); printCentered("CHOOSE STARTING PLAYER"); printLine('=');
-        std::cout << "  \033[1;33m[" << model.getCurrentPlayer()->name << "]\033[0m decides who starts the next Age.\n";
+        std::cout << "  \033[1;33m[" << model.getCurrentPlayer()->getName() << "]\033[0m decides who starts the next Age.\n";
         std::cout << "  (Decision based on military strength or last played turn)\n\n";
         std::cout << "  Available Commands:\n";
         std::cout << "  > \033[32mchoose me\033[0m        (You take the first turn)\n";
-        std::cout << "  > \033[32mchoose opponent\033[0m  (" << model.getOpponent()->name << " takes the first turn)\n";
+        std::cout << "  > \033[32mchoose opponent\033[0m  (" << model.getOpponent()->getName() << " takes the first turn)\n";
         printLine('-');
         renderErrorMessage();
         // 修改 help 提示，不显示
@@ -494,10 +497,10 @@ namespace SevenWondersDuel {
             default: // AGE_PLAY_PHASE or GAME_OVER
                 clearScreen();
                 renderHeader(model);
-                renderPlayerDashboard(*model.players[0], model.currentPlayerIndex == 0, *model.players[1], wonderCounter);
+                renderPlayerDashboard(*model.getPlayers()[0], model.getCurrentPlayerIndex() == 0, *model.getPlayers()[1], wonderCounter);
                 renderPyramid(model);
-                renderPlayerDashboard(*model.players[1], model.currentPlayerIndex == 1, *model.players[0], wonderCounter);
-                renderActionLog(model.gameLog);
+                renderPlayerDashboard(*model.getPlayers()[1], model.getCurrentPlayerIndex() == 1, *model.getPlayers()[0], wonderCounter);
+                renderActionLog(model.getGameLog());
                 renderErrorMessage();
                 renderCommandHelp(state);
                 break;
@@ -514,11 +517,11 @@ namespace SevenWondersDuel {
 
     void GameView::renderPlayerDetailFull(const Player& p, const Player& opp) {
         clearScreen();
-        printLine('='); printCentered("DETAIL: " + p.name);
+        printLine('='); printCentered("DETAIL: " + p.getName());
 
         int discardValue = 2 + p.getCardCount(CardType::COMMERCIAL);
 
-        std::cout << " [1] BASIC: Coins " << p.coins << " | VP " << p.getScore(opp) << "\n";
+        std::cout << " [1] BASIC: Coins " << p.getCoins() << " | VP " << p.getScore(opp) << "\n";
         std::cout << "     \033[33mDiscard Value: " << discardValue << " coins\033[0m\n";
 
         std::cout << " [2] RESOURCES: " << formatResourcesCompact(p) << "\n";
@@ -527,29 +530,29 @@ namespace SevenWondersDuel {
         for (auto t : types) std::cout << p.getTradingPrice(t, opp) << "$ ";
 
         std::cout << "\n [3] SCIENCE: ";
-        for(auto [s, c] : p.scienceSymbols) { if(c>0 && s!=ScienceSymbol::NONE) std::cout << "[" << (int)s << "]x" << c << " "; }
+        for(auto [s, c] : p.getScienceSymbols()) { if(c>0 && s!=ScienceSymbol::NONE) std::cout << "[" << (int)s << "]x" << c << " "; }
         std::cout << "\n [4] WONDERS:\n";
-        for(auto w : p.builtWonders) std::cout << "     [Built] " << w->name << "\n";
-        for(auto w : p.unbuiltWonders) std::cout << "     [Plan ] " << w->name << "\n";
+        for(auto w : p.getBuiltWonders()) std::cout << "     [Built] " << w->getName() << "\n";
+        for(auto w : p.getUnbuiltWonders()) std::cout << "     [Plan ] " << w->getName() << "\n";
         printLine('='); std::cout << " (Press Enter)"; std::cin.get();
     }
 
     void GameView::renderCardDetail(const Card& c) {
-        clearScreen(); printLine('='); printCentered("INFO: " + c.name);
-        std::cout << "  Type: " << getTypeStr(c.type) << " | Cost: " << formatCost(c.cost) << "\n";
-        std::cout << "  Eff: "; for(auto& eff : c.effects) std::cout << eff->getDescription() << " ";
+        clearScreen(); printLine('='); printCentered("INFO: " + c.getName());
+        std::cout << "  Type: " << getTypeStr(c.getType()) << " | Cost: " << formatCost(c.getCost()) << "\n";
+        std::cout << "  Eff: "; for(auto& eff : c.getEffects()) std::cout << eff->getDescription() << " ";
         std::cout << "\n";
 
-        if (!c.chainTag.empty()) std::cout << "  Provides Chain: \033[97m" << c.chainTag << "\033[0m\n";
-        if (!c.requiresChainTag.empty()) std::cout << "  Requires Chain: \033[97m" << c.requiresChainTag << "\033[0m\n";
+        if (!c.getChainTag().empty()) std::cout << "  Provides Chain: \033[97m" << c.getChainTag() << "\033[0m\n";
+        if (!c.getRequiresChainTag().empty()) std::cout << "  Requires Chain: \033[97m" << c.getRequiresChainTag() << "\033[0m\n";
 
         printLine('='); std::cout << " (Press Enter)"; std::cin.get();
     }
 
     void GameView::renderWonderDetail(const Wonder& w) {
-        clearScreen(); printLine('='); printCentered("INFO: " + w.name);
-        std::cout << "  Cost: " << formatCost(w.cost) << "\n";
-        std::cout << "  Eff: "; for(auto& eff : w.effects) std::cout << eff->getDescription() << " ";
+        clearScreen(); printLine('='); printCentered("INFO: " + w.getName());
+        std::cout << "  Cost: " << formatCost(w.getCost()) << "\n";
+        std::cout << "  Eff: "; for(auto& eff : w.getEffects()) std::cout << eff->getDescription() << " ";
         std::cout << "\n"; printLine('='); std::cout << " (Press Enter)"; std::cin.get();
     }
 
@@ -561,7 +564,7 @@ namespace SevenWondersDuel {
 
     void GameView::renderDiscardPile(const std::vector<Card*>& pile) {
         clearScreen(); printLine('='); printCentered("DISCARD PILE (" + std::to_string(pile.size()) + ")");
-        int idx = 1; for(auto c : pile) std::cout << "  [D" << idx++ << "] " << c->name << " (" << getTypeStr(c->type) << ")\n";
+        int idx = 1; for(auto c : pile) std::cout << "  [D" << idx++ << "] " << c->getName() << " (" << getTypeStr(c->getType()) << ")\n";
         printLine('='); std::cout << " (Press Enter)"; std::cin.get();
     }
 
@@ -582,7 +585,7 @@ namespace SevenWondersDuel {
         while (true) {
             renderGame(model, state);
 
-            std::cout << "\n " << model.getCurrentPlayer()->name << " > ";
+            std::cout << "\n " << model.getCurrentPlayer()->getName() << " > ";
 
             std::string line;
             if (!std::getline(std::cin, line)) { act.type = ActionType::DISCARD_FOR_COINS; return act; }
@@ -593,7 +596,7 @@ namespace SevenWondersDuel {
             std::string cmd; ss >> cmd;
             std::string arg1, arg2; ss >> arg1 >> arg2;
 
-            if (cmd == "log") { renderFullLog(model.gameLog); continue; }
+            if (cmd == "log") { renderFullLog(model.getGameLog()); continue; }
 
             if (cmd == "detail") {
                 int pIdx = -1;
@@ -601,7 +604,7 @@ namespace SevenWondersDuel {
                 else if (arg1 == "2") pIdx = 1;
 
                 if (pIdx != -1) {
-                    renderPlayerDetailFull(*model.players[pIdx], *model.players[1-pIdx]);
+                    renderPlayerDetailFull(*model.getPlayers()[pIdx], *model.getPlayers()[1-pIdx]);
                 } else {
                     renderPlayerDetailFull(*model.getCurrentPlayer(), *model.getOpponent());
                 }
@@ -613,17 +616,17 @@ namespace SevenWondersDuel {
 
                 bool found = false;
                 if (!found && cId!=-1 && ctx.cardIdMap.count(cId)) {
-                    for(const auto& c : model.allCards) if(c.id == ctx.cardIdMap[cId]) { renderCardDetail(c); found=true; break; }
+                    for(const auto& c : model.getAllCards()) if(c.getId() == ctx.cardIdMap[cId]) { renderCardDetail(c); found=true; break; }
                 }
                 if (!found && wId!=-1 && ctx.wonderIdMap.count(wId)) {
-                    for(const auto& w : model.allWonders) if(w.id == ctx.wonderIdMap[wId]) { renderWonderDetail(w); found=true; break; }
+                    for(const auto& w : model.getAllWonders()) if(w.getId() == ctx.wonderIdMap[wId]) { renderWonderDetail(w); found=true; break; }
                 }
                 if (!found && sId!=-1) {
                     if (ctx.tokenIdMap.count(sId)) { renderTokenDetail(ctx.tokenIdMap[sId]); found=true; }
                     else if (ctx.boxTokenIdMap.count(sId)) { renderTokenDetail(ctx.boxTokenIdMap[sId]); found=true; }
                 }
                 if (!found && tId!=-1 && ctx.oppCardIdMap.count(tId)) {
-                    for(const auto& c : model.allCards) if(c.id == ctx.oppCardIdMap[tId]) { renderCardDetail(c); found=true; break; }
+                    for(const auto& c : model.getAllCards()) if(c.getId() == ctx.oppCardIdMap[tId]) { renderCardDetail(c); found=true; break; }
                 }
 
                 if (!found) setLastError("ID not found or not visible in current context.");
@@ -633,9 +636,9 @@ namespace SevenWondersDuel {
             if (state == GameState::WONDER_DRAFT_PHASE_1 || state == GameState::WONDER_DRAFT_PHASE_2) {
                 if (cmd == "pick") {
                     int idx = parseId(arg1, ' ');
-                    if (idx >= 1 && idx <= (int)model.draftPool.size()) {
+                    if (idx >= 1 && idx <= (int)model.getDraftPool().size()) {
                         act.type = ActionType::DRAFT_WONDER;
-                        act.targetWonderId = model.draftPool[idx-1]->id;
+                        act.targetWonderId = model.getDraftPool()[idx-1]->getId();
                         return act;
                     } else setLastError("Invalid index.");
                 } else setLastError("Use 'pick <N>'.");
@@ -709,7 +712,7 @@ namespace SevenWondersDuel {
                         return act;
                     } else setLastError("Format: wonder C<ID> W<ID>");
                 }
-                else if (cmd == "pile") { renderDiscardPile(model.board->discardPile); }
+                else if (cmd == "pile") { renderDiscardPile(model.getBoard()->getDiscardPile()); }
                 else setLastError("Unknown command.");
             }
         }

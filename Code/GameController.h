@@ -33,7 +33,9 @@ namespace SevenWondersDuel {
     };
 
     // 模型聚合根 (Model Layer Root)
-    struct GameModel {
+    class GameModel {
+        friend class GameController;
+    private:
         std::vector<std::unique_ptr<Player>> players;
         std::unique_ptr<Board> board;
 
@@ -53,12 +55,33 @@ namespace SevenWondersDuel {
         // 完整日志
         std::vector<std::string> gameLog;
 
+    public:
         GameModel() {
             board = std::make_unique<Board>();
         }
 
-        Player* getCurrentPlayer() const { return players[currentPlayerIndex].get(); }
-        Player* getOpponent() const { return players[1 - currentPlayerIndex].get(); }
+        // --- Getters (Read-Only) ---
+
+        const Player* getCurrentPlayer() const { return players[currentPlayerIndex].get(); }
+        const Player* getOpponent() const { return players[1 - currentPlayerIndex].get(); }
+        
+        // --- Mutators (Friend/Internal) ---
+        Player* getCurrentPlayerMut() { return players[currentPlayerIndex].get(); }
+        Player* getOpponentMut() { return players[1 - currentPlayerIndex].get(); }
+
+        const Board* getBoard() const { return board.get(); }
+        const std::vector<std::unique_ptr<Player>>& getPlayers() const { return players; }
+        
+        int getCurrentAge() const { return currentAge; }
+        int getCurrentPlayerIndex() const { return currentPlayerIndex; }
+        int getWinnerIndex() const { return winnerIndex; }
+        VictoryType getVictoryType() const { return victoryType; }
+
+        const std::vector<Wonder*>& getDraftPool() const { return draftPool; }
+        const std::vector<Wonder*>& getRemainingWonders() const { return remainingWonders; }
+        const std::vector<Card>& getAllCards() const { return allCards; }
+        const std::vector<Wonder>& getAllWonders() const { return allWonders; }
+        const std::vector<std::string>& getGameLog() const { return gameLog; }
 
         void addLog(const std::string& msg) {
             gameLog.push_back(msg);
@@ -67,7 +90,7 @@ namespace SevenWondersDuel {
         // 获取当前金字塔剩余卡牌数
         int getRemainingCardCount() const {
             int count = 0;
-            for(const auto& slot : board->cardStructure.slots) {
+            for(const auto& slot : board->getCardStructure().getSlots()) {
                 if (!slot.isRemoved) count++;
             }
             return count;
@@ -75,7 +98,7 @@ namespace SevenWondersDuel {
     };
 
     // 游戏控制器
-    class GameController {
+    class GameController : public IEffectContext {
     public:
         GameController();
         ~GameController() = default;
@@ -103,18 +126,19 @@ namespace SevenWondersDuel {
         // 返回 true 表示动作成功执行并触发了状态变更
         bool processAction(const Action& action);
 
-        // --- 辅助逻辑 (公开给 Effects 使用) ---
+        // --- IEffectContext Implementation ---
 
-        void setPendingDestructionType(CardType t) { pendingDestructionType = t; }
+        void setPendingDestructionType(CardType t) override { pendingDestructionType = t; }
 
-        void setState(GameState newState) { currentState = newState; }
-        Board* getBoard() { return model->board.get(); }
+        void setState(GameState newState) override { currentState = newState; }
+        
+        Board* getBoard() override { return model->board.get(); }
 
         // 触发再来一回合
-        void grantExtraTurn() { extraTurnPending = true; }
+        void grantExtraTurn() override { extraTurnPending = true; }
 
         // 核心修复：添加日志接口供 EffectSystem 使用
-        void addLog(const std::string& msg) { model->addLog(msg); }
+        void addLog(const std::string& msg) override { model->addLog(msg); }
 
     private:
         std::unique_ptr<GameModel> model;
@@ -165,7 +189,7 @@ namespace SevenWondersDuel {
 
         // 辅助：从ID查找对象
         Card* findCardInPyramid(const std::string& id);
-        Wonder* findWonderInHand(Player* p, const std::string& id);
+        Wonder* findWonderInHand(const Player* p, const std::string& id);
     };
 }
 

@@ -14,7 +14,18 @@ namespace SevenWondersDuel {
 
     // 前向声明，避免循环引用
     class Player;
-    class GameController;
+    class Board;
+
+    // Context Interface to decouple EffectSystem from GameController
+    class IEffectContext {
+    public:
+        virtual ~IEffectContext() = default;
+        virtual void addLog(const std::string& msg) = 0;
+        virtual void setState(GameState newState) = 0;
+        virtual void setPendingDestructionType(CardType t) = 0;
+        virtual void grantExtraTurn() = 0;
+        virtual Board* getBoard() = 0;
+    };
 
     // 效果基类
     class IEffect {
@@ -22,7 +33,7 @@ namespace SevenWondersDuel {
         virtual ~IEffect() = default;
 
         // 核心：当卡牌/奇迹被建造时触发
-        virtual void apply(Player* self, Player* opponent, GameController* ctx) = 0;
+        virtual void apply(Player* self, Player* opponent, IEffectContext* ctx) = 0;
 
         // 核心：游戏结束时计算分数
         virtual int calculateScore(const Player* self, const Player* opponent) const { return 0; }
@@ -33,123 +44,132 @@ namespace SevenWondersDuel {
 
     // 1. 资源产出 (木/石/土/纸/玻)
     class ProductionEffect : public IEffect {
-    public:
+    private:
         std::map<ResourceType, int> producedResources;
         bool isChoice; // true=多选一 (如黄卡/奇迹), false=全部产出 (如灰卡/棕卡)
         bool isTradable; // [NEW] true=增加对手交易成本 (棕/灰卡), false=私有 (黄卡/奇迹)
 
+    public:
         ProductionEffect(std::map<ResourceType, int> res, bool choice = false, bool tradable = false)
             : producedResources(res), isChoice(choice), isTradable(tradable) {}
 
-        void apply(Player* self, Player* opponent, GameController* ctx) override;
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
         std::string getDescription() const override;
     };
 
     // 2. 军事效果 (红卡/奇迹)
     class MilitaryEffect : public IEffect {
-    public:
+    private:
         int shields;
         bool isFromCard; // 标记：来源是否为卡牌（用于 Strategy 标记判断）
 
+    public:
         explicit MilitaryEffect(int count, bool fromCard = false)
             : shields(count), isFromCard(fromCard) {}
 
-        void apply(Player* self, Player* opponent, GameController* ctx) override;
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
         std::string getDescription() const override;
     };
 
     // 3. 科技效果 (绿卡/法律)
     class ScienceEffect : public IEffect {
-    public:
+    private:
         ScienceSymbol symbol;
 
+    public:
         explicit ScienceEffect(ScienceSymbol s) : symbol(s) {}
-        void apply(Player* self, Player* opponent, GameController* ctx) override;
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
         std::string getDescription() const override;
     };
 
     // 4. 直接给分 (蓝卡/绿卡/奇迹)
     class VictoryPointEffect : public IEffect {
-    public:
+    private:
         int points;
 
+    public:
         explicit VictoryPointEffect(int p) : points(p) {}
-        void apply(Player* self, Player* opponent, GameController* ctx) override; // 通常为空
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override; // 通常为空
         int calculateScore(const Player* self, const Player* opponent) const override;
         std::string getDescription() const override;
     };
 
     // 5. 金币效果 (立即获得)
     class CoinEffect : public IEffect {
-    public:
+    private:
         int amount;
 
+    public:
         explicit CoinEffect(int a) : amount(a) {}
-        void apply(Player* self, Player* opponent, GameController* ctx) override;
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
         std::string getDescription() const override;
     };
 
     // 6. 条件金币效果 (如：每有一个黄卡给1金币) - 对应黄卡/奇迹
     class CoinsPerTypeEffect : public IEffect {
-    public:
+    private:
         CardType targetType; // 统计哪种卡
         int coinsPerCard;
         bool countWonder;    // 是否统计奇迹 (竞技场)
 
+    public:
         CoinsPerTypeEffect(CardType type, int amount, bool wonder = false)
             : targetType(type), coinsPerCard(amount), countWonder(wonder) {}
 
-        void apply(Player* self, Player* opponent, GameController* ctx) override;
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
         std::string getDescription() const override;
     };
 
     // 7. 交易优惠 (黄卡：石/木/土/纸/玻 价格变为1)
     class TradeDiscountEffect : public IEffect {
-    public:
+    private:
         ResourceType resource;
 
+    public:
         explicit TradeDiscountEffect(ResourceType r) : resource(r) {}
-        void apply(Player* self, Player* opponent, GameController* ctx) override; // 设置玩家标志位
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override; // 设置玩家标志位
         std::string getDescription() const override;
     };
 
     // 8. 摧毁卡牌 (宙斯/竞技场)
     class DestroyCardEffect : public IEffect {
-    public:
+    private:
         CardType targetColor; // 只能摧毁特定颜色的卡
 
+    public:
         explicit DestroyCardEffect(CardType color) : targetColor(color) {}
-        void apply(Player* self, Player* opponent, GameController* ctx) override; // 触发状态切换
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override; // 触发状态切换
         std::string getDescription() const override;
     };
 
     // 9. 额外回合 (奇迹)
     class ExtraTurnEffect : public IEffect {
     public:
-        void apply(Player* self, Player* opponent, GameController* ctx) override;
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
         std::string getDescription() const override { return "Take another turn immediately."; }
     };
 
     // 10. 从弃牌堆建造 (陵墓)
     class BuildFromDiscardEffect : public IEffect {
     public:
-        void apply(Player* self, Player* opponent, GameController* ctx) override;
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
         std::string getDescription() const override { return "Build a card from discard pile for free."; }
     };
 
     // 11. 发展标记选择 (图书馆)
     class ProgressTokenSelectEffect : public IEffect {
     public:
-        void apply(Player* self, Player* opponent, GameController* ctx) override;
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
         std::string getDescription() const override { return "Choose a progress token from the box."; }
     };
 
     // 12. 强迫对手丢钱 (亚壁古道)
     class OpponentLoseCoinsEffect : public IEffect {
-    public:
+    private:
         int amount;
+    public:
         explicit OpponentLoseCoinsEffect(int a) : amount(a) {}
-        void apply(Player* self, Player* opponent, GameController* ctx) override;
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
         std::string getDescription() const override;
     };
 
@@ -166,13 +186,14 @@ namespace SevenWondersDuel {
     };
 
     class GuildEffect : public IEffect {
-    public:
+    private:
         GuildCriteria criteria;
 
+    public:
         explicit GuildEffect(GuildCriteria c) : criteria(c) {}
 
         // 立即效果：给钱
-        void apply(Player* self, Player* opponent, GameController* ctx) override;
+        void apply(Player* self, Player* opponent, IEffectContext* ctx) override;
         // 结束效果：给分
         int calculateScore(const Player* self, const Player* opponent) const override;
 

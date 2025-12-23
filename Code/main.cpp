@@ -64,7 +64,7 @@ int main() {
     // 4. 主循环
     while (game.getState() != GameState::GAME_OVER) {
         const auto& model = game.getModel();
-        IPlayerAgent* currentAgent = (model.currentPlayerIndex == 0) ? agent1.get() : agent2.get();
+        IPlayerAgent* currentAgent = (model.getCurrentPlayerIndex() == 0) ? agent1.get() : agent2.get();
 
         // 渲染逻辑优化：AI 回合主动渲染以便观看，人类回合由 promptHumanAction 内部渲染
         if (!currentAgent->isHuman()) {
@@ -108,10 +108,10 @@ int main() {
     std::cout << "=========================================\n";
 
     const auto& model = game.getModel();
-    if (model.winnerIndex != -1) {
-        std::cout << "WINNER: " << model.players[model.winnerIndex]->name << "!\n";
+    if (model.getWinnerIndex() != -1) {
+        std::cout << "WINNER: " << model.getPlayers()[model.getWinnerIndex()]->getName() << "!\n";
         std::string vType;
-        switch(model.victoryType) {
+        switch(model.getVictoryType()) {
             case VictoryType::MILITARY: vType = "Military Supremacy"; break;
             case VictoryType::SCIENCE: vType = "Scientific Supremacy"; break;
             case VictoryType::CIVILIAN: vType = "Civilian Victory (Points)"; break;
@@ -120,10 +120,10 @@ int main() {
         std::cout << "Victory Type: " << vType << "\n";
 
         // 显示分数详情
-        if (model.victoryType == VictoryType::CIVILIAN) {
+        if (model.getVictoryType() == VictoryType::CIVILIAN) {
              std::cout << "Final Scores:\n";
-             std::cout << "  " << model.players[0]->name << ": " << model.players[0]->getScore(*model.players[1]) << "\n";
-             std::cout << "  " << model.players[1]->name << ": " << model.players[1]->getScore(*model.players[0]) << "\n";
+             std::cout << "  " << model.getPlayers()[0]->getName() << ": " << model.getPlayers()[0]->getScore(*model.getPlayers()[1]) << "\n";
+             std::cout << "  " << model.getPlayers()[1]->getName() << ": " << model.getPlayers()[1]->getScore(*model.getPlayers()[0]) << "\n";
         }
     }
 

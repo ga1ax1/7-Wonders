@@ -4,14 +4,14 @@
 
 #include "EffectSystem.h"
 #include "Player.h"
-#include "GameController.h"
+#include "Board.h" // Needed for Board access via Context
 #include <algorithm>
 #include <sstream>
 
 namespace SevenWondersDuel {
 
     // --- 1. ProductionEffect ---
-    void ProductionEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void ProductionEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         if (isChoice) {
             std::vector<ResourceType> choices;
             for (auto const& [type, count] : producedResources) {
@@ -38,16 +38,16 @@ namespace SevenWondersDuel {
     }
 
     // --- 2. MilitaryEffect ---
-    void MilitaryEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void MilitaryEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         int finalShields = shields;
 
         // 规则修复：Strategy Token 仅对军事建筑 (Red Cards) 生效，+1 盾
-        if (isFromCard && self->progressTokens.count(ProgressToken::STRATEGY)) {
+        if (isFromCard && self->getProgressTokens().count(ProgressToken::STRATEGY)) {
             finalShields += 1;
             ctx->addLog("[Effect] Strategy Token adds +1 Shield.");
         }
 
-        auto lootEvents = ctx->getBoard()->militaryTrack.move(finalShields, self->id);
+        auto lootEvents = ctx->getBoard()->moveMilitary(finalShields, self->getId());
 
         for (int amount : lootEvents) {
             // 扣对手的钱
@@ -62,7 +62,7 @@ namespace SevenWondersDuel {
     }
 
     // --- 3. ScienceEffect ---
-    void ScienceEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void ScienceEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         self->addScienceSymbol(symbol);
         // 配对逻辑已在 GameController::handleBuildCard 中通过 checkForNewSciencePairs 统一处理
     }
@@ -72,7 +72,7 @@ namespace SevenWondersDuel {
     }
 
     // --- 4. VictoryPointEffect ---
-    void VictoryPointEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void VictoryPointEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         // 立即效果无，只计分
     }
 
@@ -85,7 +85,7 @@ namespace SevenWondersDuel {
     }
 
     // --- 5. CoinEffect ---
-    void CoinEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void CoinEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         self->gainCoins(amount);
     }
 
@@ -94,12 +94,12 @@ namespace SevenWondersDuel {
     }
 
     // --- 6. CoinsPerTypeEffect (商业/行会) ---
-    void CoinsPerTypeEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void CoinsPerTypeEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         int count = 0;
         count += self->getCardCount(targetType);
 
         if (countWonder) {
-            count += self->builtWonders.size();
+            count += self->getBuiltWonders().size();
         }
 
         int bonus = count * coinsPerCard;
@@ -111,8 +111,8 @@ namespace SevenWondersDuel {
     }
 
     // --- 7. TradeDiscountEffect ---
-    void TradeDiscountEffect::apply(Player* self, Player* opponent, GameController* ctx) {
-        self->tradingDiscounts[resource] = true;
+    void TradeDiscountEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+        self->setTradingDiscount(resource, true);
     }
 
     std::string TradeDiscountEffect::getDescription() const {
@@ -120,7 +120,7 @@ namespace SevenWondersDuel {
     }
 
     // --- 8. DestroyCardEffect ---
-    void DestroyCardEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void DestroyCardEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         ctx->setPendingDestructionType(targetColor);
         ctx->setState(GameState::WAITING_FOR_DESTRUCTION);
     }
@@ -130,14 +130,14 @@ namespace SevenWondersDuel {
     }
 
     // --- 9. ExtraTurnEffect ---
-    void ExtraTurnEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void ExtraTurnEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         ctx->grantExtraTurn();
     }
 
     // --- 10. BuildFromDiscardEffect ---
-    void BuildFromDiscardEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void BuildFromDiscardEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         // [UPDATED] 如果弃牌堆为空，则不触发等待状态，直接记录日志
-        if (ctx->getBoard()->discardPile.empty()) {
+        if (ctx->getBoard()->getDiscardPile().empty()) {
              ctx->addLog("[Effect] Discard pile is empty. Mausoleum effect skipped.");
              return;
         }
@@ -145,13 +145,13 @@ namespace SevenWondersDuel {
     }
 
     // --- 11. ProgressTokenSelectEffect ---
-    void ProgressTokenSelectEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void ProgressTokenSelectEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         ctx->setState(GameState::WAITING_FOR_TOKEN_SELECTION_LIB);
     }
 
     // --- 12. OpponentLoseCoinsEffect ---
-    void OpponentLoseCoinsEffect::apply(Player* self, Player* opponent, GameController* ctx) {
-        int loss = std::min(opponent->coins, amount);
+    void OpponentLoseCoinsEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
+        int loss = std::min(opponent->getCoins(), amount);
         opponent->payCoins(loss);
     }
     std::string OpponentLoseCoinsEffect::getDescription() const {
@@ -159,7 +159,7 @@ namespace SevenWondersDuel {
     }
 
     // --- 13. GuildEffect ---
-    void GuildEffect::apply(Player* self, Player* opponent, GameController* ctx) {
+    void GuildEffect::apply(Player* self, Player* opponent, IEffectContext* ctx) {
         // 立即效果：获得金币 (通常是每张1元)
         int count = 0;
         int selfCount = 0;
@@ -239,13 +239,13 @@ namespace SevenWondersDuel {
                 count = std::max(selfCount, oppCount);
                 return count * 1;
             case GuildCriteria::WONDERS:
-                 selfCount = self->builtWonders.size();
-                 oppCount = opponent->builtWonders.size();
+                 selfCount = self->getBuiltWonders().size();
+                 oppCount = opponent->getBuiltWonders().size();
                  count = std::max(selfCount, oppCount);
                  return count * 2; // Builders Guild: 2 VP per Wonder
             case GuildCriteria::COINS:
-                 selfCount = self->coins;
-                 oppCount = opponent->coins;
+                 selfCount = self->getCoins();
+                 oppCount = opponent->getCoins();
                  count = std::max(selfCount, oppCount);
                  return count / 3; // Moneylenders: 1 VP per 3 Coins set
             default: return 0;

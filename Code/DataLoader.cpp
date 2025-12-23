@@ -147,17 +147,17 @@ namespace SevenWondersDuel {
         const auto& cardsList = root["cards"].asList();
         for (const auto& v : cardsList) {
             Card c;
-            c.id = v["id"].asString();
-            c.name = v["name"].asString();
-            c.age = v["age"].asInt();
-            c.type = strToCardType(v["type"].asString());
-            c.cost = parseCost(v["cost"]);
-            c.chainTag = v["provided_chain"].asString();
-            c.requiresChainTag = v["requires_chain"].asString();
+            c.m_id = v["id"].asString();
+            c.m_name = v["name"].asString();
+            c.m_age = v["age"].asInt();
+            c.m_type = strToCardType(v["type"].asString());
+            c.m_cost = parseCost(v["cost"]);
+            c.m_chainTag = v["provided_chain"].asString();
+            c.m_requiresChainTag = v["requires_chain"].asString();
 
             // 解析卡牌效果 (Source = Card, True)
             // [UPDATED] 传入 c.type
-            c.effects = parseEffects(v["effects"], c.type, true);
+            c.m_effects = parseEffects(v["effects"], c.m_type, true);
             outCards.push_back(c);
         }
 
@@ -165,13 +165,13 @@ namespace SevenWondersDuel {
         const auto& wondersList = root["wonders"].asList();
         for (const auto& v : wondersList) {
             Wonder w;
-            w.id = v["id"].asString();
-            w.name = v["name"].asString();
-            w.cost = parseCost(v["cost"]);
+            w.m_id = v["id"].asString();
+            w.m_name = v["name"].asString();
+            w.m_cost = parseCost(v["cost"]);
 
             // 解析奇迹效果 (Source = Wonder, False)
             // Type 这里设为 Wonder 即可，反正 parseEffects 内部会处理 isFromCard=false
-            w.effects = parseEffects(v["effects"], CardType::WONDER, false);
+            w.m_effects = parseEffects(v["effects"], CardType::WONDER, false);
             outWonders.push_back(w);
         }
 

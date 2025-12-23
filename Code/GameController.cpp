@@ -49,14 +49,14 @@ namespace SevenWondersDuel {
 
         std::shuffle(allTokens.begin(), allTokens.end(), rng);
 
-        model->board->availableProgressTokens.clear();
+        model->board->setAvailableProgressTokens({});
         for(int i=0; i<5; ++i) {
-            model->board->availableProgressTokens.push_back(allTokens[i]);
+            model->board->addAvailableProgressToken(allTokens[i]);
         }
 
-        model->board->boxProgressTokens.clear();
+        model->board->setBoxProgressTokens({});
         for(size_t i=5; i<allTokens.size(); ++i) {
-            model->board->boxProgressTokens.push_back(allTokens[i]);
+            model->board->addBoxProgressToken(allTokens[i]);
         }
 
         model->addLog("[System] Game Initialized. Progress Tokens shuffled.");
@@ -91,7 +91,7 @@ namespace SevenWondersDuel {
     void GameController::setupAge(int age) {
         model->currentAge = age;
         std::vector<Card*> deck = prepareDeckForAge(age);
-        model->board->cardStructure.init(age, deck);
+        model->board->initPyramid(age, deck);
         currentState = GameState::AGE_PLAY_PHASE;
         model->addLog("[System] Age " + std::to_string(age) + " Begins!");
     }
@@ -129,7 +129,7 @@ namespace SevenWondersDuel {
 
         // 准备进入下一时代：判定谁决定先手
         int decisionMaker = -1;
-        int pos = model->board->militaryTrack.position;
+        int pos = model->board->getMilitaryTrack().getPosition();
 
         if (pos > 0) decisionMaker = 1;
         else if (pos < 0) decisionMaker = 0;
@@ -139,7 +139,7 @@ namespace SevenWondersDuel {
         currentState = GameState::WAITING_FOR_START_PLAYER_SELECTION;
 
         model->addLog("[System] End of Age " + std::to_string(model->currentAge) +
-                      ". " + model->getCurrentPlayer()->name + " chooses who starts next age.");
+                      ". " + model->getCurrentPlayer()->getName() + " chooses who starts next age.");
     }
 
     std::vector<Card*> GameController::prepareDeckForAge(int age) {
@@ -148,9 +148,9 @@ namespace SevenWondersDuel {
         std::vector<Card*> guildCards;
 
         for(auto& c : model->allCards) {
-            if (c.type == CardType::GUILD) {
+            if (c.getType() == CardType::GUILD) {
                 guildCards.push_back(&c);
-            } else if (c.age == age) {
+            } else if (c.getAge() == age) {
                 ageCards.push_back(&c);
             }
         }
@@ -193,7 +193,7 @@ namespace SevenWondersDuel {
         // 3. 正常回合切换
         if (extraTurnPending) {
             extraTurnPending = false;
-            model->addLog(">> EXTRA TURN for " + model->getCurrentPlayer()->name);
+            model->addLog(">> EXTRA TURN for " + model->getCurrentPlayer()->getName());
         } else {
             switchPlayer();
         }
@@ -202,17 +202,17 @@ namespace SevenWondersDuel {
     // --- Actions ---
 
     void GameController::handleDraftWonder(const Action& action) {
-        Player* currPlayer = model->getCurrentPlayer();
+        Player* currPlayer = model->getCurrentPlayerMut();
 
         auto it = std::find_if(model->draftPool.begin(), model->draftPool.end(),
-            [&](Wonder* w){ return w->id == action.targetWonderId; });
+            [&](Wonder* w){ return w->getId() == action.targetWonderId; });
 
         if (it != model->draftPool.end()) {
             Wonder* w = *it;
-            currPlayer->unbuiltWonders.push_back(w);
+            currPlayer->addUnbuiltWonder(w);
             model->draftPool.erase(it);
 
-            model->addLog("[" + currPlayer->name + "] drafted wonder: " + w->name);
+            model->addLog("[" + currPlayer->getName() + "] drafted wonder: " + w->getName());
 
             // 1-2-1 逻辑
             bool shouldSwitch = true;
@@ -240,32 +240,32 @@ namespace SevenWondersDuel {
     }
 
     void GameController::handleBuildCard(const Action& action) {
-        Player* currPlayer = model->getCurrentPlayer();
-        Player* opponent = model->getOpponent();
+        Player* currPlayer = model->getCurrentPlayerMut();
+        Player* opponent = model->getOpponentMut();
         Card* targetCard = findCardInPyramid(action.targetCardId);
 
         // [UPDATED] 传入 CardType 用于计算减费
         ActionResult res = validateAction(action);
         currPlayer->payCoins(res.cost);
 
-        model->board->cardStructure.removeCard(targetCard->id);
+        model->board->removeCardFromPyramid(targetCard->getId());
         currPlayer->constructCard(targetCard);
 
-        model->addLog("[" + currPlayer->name + "] built " + targetCard->name);
+        model->addLog("[" + currPlayer->getName() + "] built " + targetCard->getName());
 
         // [FIX] Urbanism Check: 如果是连锁建造 (res.cost == 0 但 原卡有消费 且 确实是 Chain)，奖励4元
         bool isChain = false;
-        if (!targetCard->requiresChainTag.empty() &&
-            currPlayer->ownedChainTags.count(targetCard->requiresChainTag)) {
+        if (!targetCard->getRequiresChainTag().empty() &&
+            currPlayer->getOwnedChainTags().count(targetCard->getRequiresChainTag())) {
             isChain = true;
         }
 
-        if (isChain && currPlayer->progressTokens.count(ProgressToken::URBANISM)) {
+        if (isChain && currPlayer->getProgressTokens().count(ProgressToken::URBANISM)) {
             currPlayer->gainCoins(4);
             model->addLog("[Effect] Urbanism: +4 coins from chain build.");
         }
 
-        for(auto& eff : targetCard->effects) {
+        for(auto& eff : targetCard->getEffects()) {
             eff->apply(currPlayer, opponent, this);
         }
 
@@ -279,23 +279,23 @@ namespace SevenWondersDuel {
     }
 
     void GameController::handleDiscardCard(const Action& action) {
-        Player* currPlayer = model->getCurrentPlayer();
+        Player* currPlayer = model->getCurrentPlayerMut();
         Card* targetCard = findCardInPyramid(action.targetCardId);
 
-        model->board->cardStructure.removeCard(targetCard->id);
-        model->board->discardPile.push_back(targetCard);
+        model->board->removeCardFromPyramid(targetCard->getId());
+        model->board->addToDiscardPile(targetCard);
 
         int gain = 2 + currPlayer->getCardCount(CardType::COMMERCIAL);
         currPlayer->gainCoins(gain);
 
-        model->addLog("[" + currPlayer->name + "] discarded " + targetCard->name + " (+ " + std::to_string(gain) + " coins)");
+        model->addLog("[" + currPlayer->getName() + "] discarded " + targetCard->getName() + " (+ " + std::to_string(gain) + " coins)");
 
         onTurnEnd();
     }
 
     void GameController::handleBuildWonder(const Action& action) {
-        Player* currPlayer = model->getCurrentPlayer();
-        Player* opponent = model->getOpponent();
+        Player* currPlayer = model->getCurrentPlayerMut();
+        Player* opponent = model->getOpponentMut();
         Card* pyramidCard = findCardInPyramid(action.targetCardId);
         Wonder* wonder = findWonderInHand(currPlayer, action.targetWonderId);
 
@@ -303,23 +303,23 @@ namespace SevenWondersDuel {
         ActionResult res = validateAction(action);
         currPlayer->payCoins(res.cost);
 
-        model->board->cardStructure.removeCard(pyramidCard->id);
-        currPlayer->constructWonder(wonder->id, pyramidCard);
+        model->board->removeCardFromPyramid(pyramidCard->getId());
+        currPlayer->constructWonder(wonder->getId(), pyramidCard);
 
-        model->addLog("[" + currPlayer->name + "] built WONDER: " + wonder->name + "!");
+        model->addLog("[" + currPlayer->getName() + "] built WONDER: " + wonder->getName() + "!");
 
-        for(auto& eff : wonder->effects) {
+        for(auto& eff : wonder->getEffects()) {
             eff->apply(currPlayer, opponent, this);
         }
 
-        int totalBuilt = model->players[0]->builtWonders.size() + model->players[1]->builtWonders.size();
+        int totalBuilt = model->players[0]->getBuiltWonders().size() + model->players[1]->getBuiltWonders().size();
         if (totalBuilt == 7) {
             model->addLog("[System] 7 Wonders built! The 8th wonder is removed.");
-            model->players[0]->unbuiltWonders.clear();
-            model->players[1]->unbuiltWonders.clear();
+            model->players[0]->clearUnbuiltWonders();
+            model->players[1]->clearUnbuiltWonders();
         }
 
-        if (currPlayer->progressTokens.count(ProgressToken::THEOLOGY)) {
+        if (currPlayer->getProgressTokens().count(ProgressToken::THEOLOGY)) {
              grantExtraTurn();
              model->addLog("[Effect] Theology Token grants an Extra Turn!");
         }
@@ -334,39 +334,35 @@ namespace SevenWondersDuel {
     }
 
     void GameController::handleSelectProgressToken(const Action& action) {
-        Player* currPlayer = model->getCurrentPlayer();
+        Player* currPlayer = model->getCurrentPlayerMut();
         ProgressToken token = action.selectedToken;
 
-        std::vector<ProgressToken>* sourcePool = nullptr;
+        bool success = false;
         if (currentState == GameState::WAITING_FOR_TOKEN_SELECTION_PAIR) {
-            sourcePool = &model->board->availableProgressTokens;
+            success = model->board->removeAvailableProgressToken(token);
         } else if (currentState == GameState::WAITING_FOR_TOKEN_SELECTION_LIB) {
-            sourcePool = &model->board->boxProgressTokens;
+            success = model->board->removeBoxProgressToken(token);
         }
 
-        if (sourcePool) {
-            auto it = std::find(sourcePool->begin(), sourcePool->end(), token);
-            if (it != sourcePool->end()) {
-                sourcePool->erase(it);
-                currPlayer->addProgressToken(token);
-                model->addLog("[" + currPlayer->name + "] selected a Progress Token.");
+        if (success) {
+            currPlayer->addProgressToken(token);
+            model->addLog("[" + currPlayer->getName() + "] selected a Progress Token.");
 
-                // [FIX] Urbanism Instant Bonus
-                if (token == ProgressToken::URBANISM) {
-                    currPlayer->gainCoins(6);
-                    model->addLog("[Effect] Urbanism: +6 coins immediately.");
-                }
-
-                currentState = GameState::AGE_PLAY_PHASE;
-
-                if (token == ProgressToken::LAW) {
-                    if (checkForNewSciencePairs(currPlayer)) {
-                        return;
-                    }
-                }
-
-                onTurnEnd();
+            // [FIX] Urbanism Instant Bonus
+            if (token == ProgressToken::URBANISM) {
+                currPlayer->gainCoins(6);
+                model->addLog("[Effect] Urbanism: +6 coins immediately.");
             }
+
+            currentState = GameState::AGE_PLAY_PHASE;
+
+            if (token == ProgressToken::LAW) {
+                if (checkForNewSciencePairs(currPlayer)) {
+                    return;
+                }
+            }
+
+            onTurnEnd();
         }
     }
 
@@ -378,17 +374,17 @@ namespace SevenWondersDuel {
             return;
         }
 
-        Player* opponent = model->getOpponent();
+        Player* opponent = model->getOpponentMut();
         Card* target = nullptr;
-        for(auto c : opponent->builtCards) {
-            if (c->id == action.targetCardId) {
+        for(auto c : opponent->getBuiltCards()) {
+            if (c->getId() == action.targetCardId) {
                 target = c; break;
             }
         }
 
         if (target) {
-             model->board->destroyCard(opponent, target->type);
-             model->addLog("[System] " + opponent->name + "'s card " + target->name + " destroyed.");
+             model->board->destroyCard(opponent, target->getType());
+             model->addLog("[System] " + opponent->getName() + "'s card " + target->getName() + " destroyed.");
         }
 
         currentState = GameState::AGE_PLAY_PHASE;
@@ -396,15 +392,15 @@ namespace SevenWondersDuel {
     }
 
     void GameController::handleChooseStartingPlayer(const Action& action) {
-        Player* curr = model->getCurrentPlayer();
+        Player* curr = model->getCurrentPlayerMut();
 
         int nextStarter = -1;
         if (action.targetCardId == "ME") {
             nextStarter = model->currentPlayerIndex;
-            model->addLog(curr->name + " chose to go first.");
+            model->addLog(curr->getName() + " chose to go first.");
         } else {
             nextStarter = 1 - model->currentPlayerIndex;
-            model->addLog(curr->name + " chose opponent to go first.");
+            model->addLog(curr->getName() + " chose opponent to go first.");
         }
 
         setupAge(model->currentAge + 1);
@@ -412,20 +408,17 @@ namespace SevenWondersDuel {
     }
 
     void GameController::handleSelectFromDiscard(const Action& action) {
-        Player* currPlayer = model->getCurrentPlayer();
-        Player* opponent = model->getOpponent();
+        Player* currPlayer = model->getCurrentPlayerMut();
+        Player* opponent = model->getOpponentMut();
 
-        auto& pile = model->board->discardPile;
-        auto it = std::find_if(pile.begin(), pile.end(), [&](Card* c){ return c->id == action.targetCardId; });
+        Card* card = model->board->removeCardFromDiscardPile(action.targetCardId);
 
-        if (it != pile.end()) {
-            Card* card = *it;
-            pile.erase(it);
+        if (card) {
             currPlayer->constructCard(card);
 
-            model->addLog("[" + currPlayer->name + "] resurrected " + card->name + " from discard!");
+            model->addLog("[" + currPlayer->getName() + "] resurrected " + card->getName() + " from discard!");
 
-            for(auto& eff : card->effects) {
+            for(auto& eff : card->getEffects()) {
                 eff->apply(currPlayer, opponent, this);
             }
 
@@ -444,14 +437,14 @@ namespace SevenWondersDuel {
         ActionResult result;
         result.isValid = false;
 
-        Player* currPlayer = model->getCurrentPlayer();
-        Player* opponent = model->getOpponent();
+        const Player* currPlayer = model->getCurrentPlayerMut();
+        const Player* opponent = model->getOpponentMut();
 
         if (currentState == GameState::WONDER_DRAFT_PHASE_1 ||
             currentState == GameState::WONDER_DRAFT_PHASE_2) {
             if (action.type == ActionType::DRAFT_WONDER) {
                 bool found = false;
-                for(auto w : model->draftPool) if(w->id == action.targetWonderId) found = true;
+                for(auto w : model->draftPool) if(w->getId() == action.targetWonderId) found = true;
                 if(found) { result.isValid = true; return result; }
                 result.message = "Wonder not available in draft pool";
                 return result;
@@ -476,11 +469,11 @@ namespace SevenWondersDuel {
                     return result;
                 }
 
-                Player* opponent = model->getOpponent();
+                const Player* opponent = model->getOpponent();
                 bool hasCard = false;
                 Card* targetCard = nullptr;
-                for (auto c : opponent->builtCards) {
-                    if (c->id == action.targetCardId) {
+                for (auto c : opponent->getBuiltCards()) {
+                    if (c->getId() == action.targetCardId) {
                         hasCard = true;
                         targetCard = c;
                         break;
@@ -492,7 +485,7 @@ namespace SevenWondersDuel {
                     return result;
                 }
 
-                if (targetCard->type != pendingDestructionType) {
+                if (targetCard->getType() != pendingDestructionType) {
                     result.message = "Invalid card color. Must destroy a specific type.";
                     return result;
                 }
@@ -506,8 +499,8 @@ namespace SevenWondersDuel {
 
         if (currentState == GameState::WAITING_FOR_DISCARD_BUILD) {
              if (action.type == ActionType::SELECT_FROM_DISCARD) {
-                 auto& pile = model->board->discardPile;
-                 auto it = std::find_if(pile.begin(), pile.end(), [&](Card* c){ return c->id == action.targetCardId; });
+                 auto& pile = model->board->getDiscardPile();
+                 auto it = std::find_if(pile.begin(), pile.end(), [&](Card* c){ return c->getId() == action.targetCardId; });
                  if (it != pile.end()) {
                      result.isValid = true;
                      return result;
@@ -517,7 +510,7 @@ namespace SevenWondersDuel {
              }
              result.message = "Must select a card from discard pile";
              return result;
-        }
+             }
 
         if (currentState == GameState::WAITING_FOR_START_PLAYER_SELECTION) {
             if (action.type == ActionType::CHOOSE_STARTING_PLAYER) {
@@ -536,17 +529,17 @@ namespace SevenWondersDuel {
             if (!target) { result.message = "Card not found"; return result; }
 
             bool isAvailable = false;
-            auto availableSlots = model->board->cardStructure.getAvailableCards();
+            auto availableSlots = model->board->getCardStructure().getAvailableCards();
             for(auto slot : availableSlots) if(slot->cardPtr == target) isAvailable = true;
             if (!isAvailable) { result.message = "Card is currently covered"; return result; }
 
             if (action.type == ActionType::BUILD_CARD) {
                 // [UPDATED] 传入 target->type
-                auto costInfo = currPlayer->calculateCost(target->cost, *opponent, target->type);
+                auto costInfo = currPlayer->calculateCost(target->getCost(), *opponent, target->getType());
 
                 // 检查连锁
-                if (!target->requiresChainTag.empty() &&
-                    currPlayer->ownedChainTags.count(target->requiresChainTag)) {
+                if (!target->getRequiresChainTag().empty() &&
+                    currPlayer->getOwnedChainTags().count(target->getRequiresChainTag())) {
                     costInfo.first = true; costInfo.second = 0;
                 }
 
@@ -563,10 +556,10 @@ namespace SevenWondersDuel {
             else if (action.type == ActionType::BUILD_WONDER) {
                 Wonder* w = findWonderInHand(currPlayer, action.targetWonderId);
                 if (!w) { result.message = "Wonder not found in hand"; return result; }
-                if (w->isBuilt) { result.message = "Wonder already built"; return result; }
+                if (w->isBuilt()) { result.message = "Wonder already built"; return result; }
 
                 // [UPDATED] 传入 CardType::WONDER
-                auto costInfo = currPlayer->calculateCost(w->cost, *opponent, CardType::WONDER);
+                auto costInfo = currPlayer->calculateCost(w->getCost(), *opponent, CardType::WONDER);
                 if (!costInfo.first) { result.message = "Insufficient resources for Wonder"; return result; }
 
                 result.isValid = true;
@@ -600,14 +593,14 @@ namespace SevenWondersDuel {
     // --- 缺失函数实现 ---
 
     bool GameController::checkForNewSciencePairs(Player* p) {
-        for (auto const& [sym, count] : p->scienceSymbols) {
+        for (auto const& [sym, count] : p->getScienceSymbols()) {
             if (sym == ScienceSymbol::NONE) continue;
 
             if (count >= 2) {
-                if (p->claimedSciencePairs.find(sym) == p->claimedSciencePairs.end()) {
-                    p->claimedSciencePairs.insert(sym);
+                if (p->getClaimedSciencePairs().find(sym) == p->getClaimedSciencePairs().end()) {
+                    p->addClaimedSciencePair(sym);
                     setState(GameState::WAITING_FOR_TOKEN_SELECTION_PAIR);
-                    model->addLog(p->name + " collected a Science Pair! Choose a Progress Token.");
+                    model->addLog(p->getName() + " collected a Science Pair! Choose a Progress Token.");
                     return true;
                 }
             }
@@ -618,11 +611,11 @@ namespace SevenWondersDuel {
     void GameController::resolveMilitaryLoot(const std::vector<int>& lootEvents) {
         for (int amount : lootEvents) {
             if (amount > 0) {
-                int loss = std::min(model->players[1]->coins, amount);
+                int loss = std::min(model->players[1]->getCoins(), amount);
                 model->players[1]->payCoins(loss);
                 model->addLog("[Military] Player 2 lost " + std::to_string(loss) + " coins!");
             } else {
-                int loss = std::min(model->players[0]->coins, std::abs(amount));
+                int loss = std::min(model->players[0]->getCoins(), std::abs(amount));
                 model->players[0]->payCoins(loss);
                 model->addLog("[Military] Player 1 lost " + std::to_string(loss) + " coins!");
             }
@@ -630,16 +623,16 @@ namespace SevenWondersDuel {
     }
 
     void GameController::checkVictoryConditions() {
-        if (std::abs(model->board->militaryTrack.position) >= 9) {
+        if (std::abs(model->board->getMilitaryTrack().getPosition()) >= 9) {
             currentState = GameState::GAME_OVER;
-            if (model->board->militaryTrack.position > 0) model->winnerIndex = 0;
+            if (model->board->getMilitaryTrack().getPosition() > 0) model->winnerIndex = 0;
             else model->winnerIndex = 1;
             model->victoryType = VictoryType::MILITARY;
         }
 
         for(int i=0; i<2; ++i) {
             int distinctSymbols = 0;
-            for(auto const& [sym, count] : model->players[i]->scienceSymbols) {
+            for(auto const& [sym, count] : model->players[i]->getScienceSymbols()) {
                 if (sym != ScienceSymbol::NONE && count > 0) distinctSymbols++;
             }
             if (distinctSymbols >= 6) {
@@ -651,12 +644,12 @@ namespace SevenWondersDuel {
     }
 
     Card* GameController::findCardInPyramid(const std::string& id) {
-        for(auto& c : model->allCards) if (c.id == id) return &c;
+        for(auto& c : model->allCards) if (c.getId() == id) return &c;
         return nullptr;
     }
 
-    Wonder* GameController::findWonderInHand(Player* p, const std::string& id) {
-        for(auto w : p->unbuiltWonders) if (w->id == id) return w;
+    Wonder* GameController::findWonderInHand(const Player* p, const std::string& id) {
+        for(auto w : p->getUnbuiltWonders()) if (w->getId() == id) return w;
         return nullptr;
     }
 

@@ -18,13 +18,22 @@
 namespace SevenWondersDuel {
 
     // 军事轨道
-    struct MilitaryTrack {
-        int position = 0; // 范围 -9 (P1胜利) 到 +9 (P2胜利)
+    class MilitaryTrack {
+        friend class Board;
+        friend class GameController; // Temporary friend until fully refactored
+        friend class GameView; // Needs access to render
+    private:
+        int m_position = 0; // 范围 -9 (P1胜利) 到 +9 (P2胜利)
 
         // 掠夺标记 (true 代表还在，false 代表已被移除/触发)
         // 索引含义: 0: P1失2元, 1: P1失5元, 2: P2失2元, 3: P2失5元
-        bool lootTokens[4] = {true, true, true, true};
+        bool m_lootTokens[4] = {true, true, true, true};
 
+    public:
+        // Getters
+        int getPosition() const { return m_position; }
+        const bool* getLootTokens() const { return m_lootTokens; }
+        
         // 移动冲突标记
         // 返回：触发的掠夺事件列表 (负数代表P1扣钱，正数代表P2扣钱)
         std::vector<int> move(int shields, int currentPlayerId) {
@@ -32,33 +41,33 @@ namespace SevenWondersDuel {
 
             // P0 (Id=0) 向正方向(+)推，P1 (Id=1) 向负方向(-)推
             int direction = (currentPlayerId == 0) ? 1 : -1;
-            int startPos = position;
-            position += (shields * direction);
+            int startPos = m_position;
+            m_position += (shields * direction);
 
             // 钳制范围
-            if (position > 9) position = 9;
-            if (position < -9) position = -9;
+            if (m_position > 9) m_position = 9;
+            if (m_position < -9) m_position = -9;
 
             // 检查掠夺 (跨越阈值)
             // 阈值：3 (2元), 6 (5元)
 
             // P1 (右侧玩家) 被攻击 (Position > 0)
-            if (startPos < 3 && position >= 3 && lootTokens[2]) {
-                lootTokens[2] = false;
+            if (startPos < 3 && m_position >= 3 && m_lootTokens[2]) {
+                m_lootTokens[2] = false;
                 lootEvents.push_back(2);
             }
-            if (startPos < 6 && position >= 6 && lootTokens[3]) {
-                lootTokens[3] = false;
+            if (startPos < 6 && m_position >= 6 && m_lootTokens[3]) {
+                m_lootTokens[3] = false;
                 lootEvents.push_back(5);
             }
 
             // P0 (左侧玩家) 被攻击 (Position < 0)
-            if (startPos > -3 && position <= -3 && lootTokens[0]) {
-                lootTokens[0] = false;
+            if (startPos > -3 && m_position <= -3 && m_lootTokens[0]) {
+                m_lootTokens[0] = false;
                 lootEvents.push_back(-2);
             }
-            if (startPos > -6 && position <= -6 && lootTokens[1]) {
-                lootTokens[1] = false;
+            if (startPos > -6 && m_position <= -6 && m_lootTokens[1]) {
+                m_lootTokens[1] = false;
                 lootEvents.push_back(-5);
             }
 
@@ -66,26 +75,34 @@ namespace SevenWondersDuel {
         }
 
         int getVictoryPoints(int playerId) const {
-            int absPos = std::abs(position);
+            int absPos = std::abs(m_position);
             int points = 0;
             if (absPos >= 1 && absPos < 3) points = 0;
             else if (absPos >= 3 && absPos < 6) points = 2;
             else if (absPos >= 6 && absPos < 9) points = 5;
             else if (absPos >= 9) points = 10;
 
-            if (position > 0 && playerId == 0) return points;
-            if (position < 0 && playerId == 1) return points;
+            if (m_position > 0 && playerId == 0) return points;
+            if (m_position < 0 && playerId == 1) return points;
             return 0;
         }
     };
 
     // 金字塔结构管理
     class CardPyramid {
-    public:
-        std::vector<CardSlot> slots;
+        friend class Board;
+        friend class GameController;
+        friend class GameView;
+        friend class GameModel;
+    private:
+        std::vector<CardSlot> m_slots;
 
+    public:
+        // Accessors
+        const std::vector<CardSlot>& getSlots() const { return m_slots; }
+        
         void init(int age, const std::vector<Card*>& deck) {
-            slots.clear();
+            m_slots.clear();
             int cardIdx = 0;
 
             if (age == 1) {
@@ -126,7 +143,7 @@ namespace SevenWondersDuel {
 
         std::vector<const CardSlot*> getAvailableCards() const {
             std::vector<const CardSlot*> available;
-            for (const auto& slot : slots) {
+            for (const auto& slot : m_slots) {
                 if (!slot.isRemoved && slot.coveredBy.empty()) {
                     available.push_back(&slot);
                 }
@@ -138,11 +155,11 @@ namespace SevenWondersDuel {
             Card* removedCard = nullptr;
             int removedIdx = -1;
 
-            for (int i = 0; i < slots.size(); ++i) {
-                if (slots[i].id == cardId || (slots[i].cardPtr && slots[i].cardPtr->id == cardId)) {
-                    if (slots[i].isRemoved) return nullptr; // 已经被移除了
-                    slots[i].isRemoved = true;
-                    removedCard = slots[i].cardPtr;
+            for (int i = 0; i < m_slots.size(); ++i) {
+                if (m_slots[i].id == cardId || (m_slots[i].cardPtr && m_slots[i].cardPtr->getId() == cardId)) {
+                    if (m_slots[i].isRemoved) return nullptr; // 已经被移除了
+                    m_slots[i].isRemoved = true;
+                    removedCard = m_slots[i].cardPtr;
                     removedIdx = i;
                     break;
                 }
@@ -151,7 +168,7 @@ namespace SevenWondersDuel {
             if (removedIdx == -1) return nullptr;
 
             // 更新依赖
-            for (auto& s : slots) {
+            for (auto& s : m_slots) {
                 if (s.isRemoved) continue;
 
                 auto it = std::remove(s.coveredBy.begin(), s.coveredBy.end(), removedIdx);
@@ -173,21 +190,21 @@ namespace SevenWondersDuel {
                 if (deckIdx >= deck.size()) break;
                 CardSlot slot;
                 slot.cardPtr = deck[deckIdx++];
-                slot.id = slot.cardPtr->id;
+                slot.id = slot.cardPtr->getId();
                 slot.isFaceUp = faceUp;
                 slot.row = row;
                 slot.index = i;
-                slots.push_back(slot);
+                m_slots.push_back(slot);
             }
         }
 
         int getAbsIndex(CardSlot* ptr) {
-            return static_cast<int>(ptr - &slots[0]);
+            return static_cast<int>(ptr - &m_slots[0]);
         }
 
         std::vector<CardSlot*> getSlotsByRow(int r) {
             std::vector<CardSlot*> res;
-            for (auto& s : slots) {
+            for (auto& s : m_slots) {
                 if (s.row == r) res.push_back(&s);
             }
             return res;
@@ -294,28 +311,103 @@ namespace SevenWondersDuel {
     };
 
     class Board {
+        friend class GameController;
+        friend class GameView;
+        friend class GameModel;
+        // Effect classes need access to specific features, but we should use public methods if possible.
+        // For now, we will add specific methods for them.
+    private:
+        MilitaryTrack m_militaryTrack;
+        CardPyramid m_cardStructure;
+        std::vector<Card*> m_discardPile;
+
+        std::vector<ProgressToken> m_availableProgressTokens;
+        std::vector<ProgressToken> m_boxProgressTokens;
+
     public:
-        MilitaryTrack militaryTrack;
-        CardPyramid cardStructure;
-        std::vector<Card*> discardPile;
-
-        std::vector<ProgressToken> availableProgressTokens;
-        std::vector<ProgressToken> boxProgressTokens;
-
         Board() = default;
+
+        // Getters (Const)
+        const MilitaryTrack& getMilitaryTrack() const { return m_militaryTrack; }
+        const CardPyramid& getCardStructure() const { return m_cardStructure; }
+        const std::vector<Card*>& getDiscardPile() const { return m_discardPile; }
+        const std::vector<ProgressToken>& getAvailableProgressTokens() const { return m_availableProgressTokens; }
+        const std::vector<ProgressToken>& getBoxProgressTokens() const { return m_boxProgressTokens; }
+
+        // --- Mutators (Encapsulated) ---
+
+        // Military
+        std::vector<int> moveMilitary(int shields, int currentPlayerId) {
+            return m_militaryTrack.move(shields, currentPlayerId);
+        }
+
+        // Pyramid
+        void initPyramid(int age, const std::vector<Card*>& deck) {
+            m_cardStructure.init(age, deck);
+        }
+
+        Card* removeCardFromPyramid(const std::string& cardId) {
+            return m_cardStructure.removeCard(cardId);
+        }
+        
+        // Discard Pile
+        void addToDiscardPile(Card* c) {
+            if (c) m_discardPile.push_back(c);
+        }
+
+        Card* removeCardFromDiscardPile(const std::string& cardId) {
+            auto it = std::find_if(m_discardPile.begin(), m_discardPile.end(), 
+                [&](Card* c){ return c->getId() == cardId; });
+            
+            if (it != m_discardPile.end()) {
+                Card* c = *it;
+                m_discardPile.erase(it);
+                return c;
+            }
+            return nullptr;
+        }
+
+        // Progress Tokens
+        void setAvailableProgressTokens(const std::vector<ProgressToken>& tokens) {
+            m_availableProgressTokens = tokens;
+        }
+        
+        void setBoxProgressTokens(const std::vector<ProgressToken>& tokens) {
+            m_boxProgressTokens = tokens;
+        }
+
+        void addAvailableProgressToken(ProgressToken t) {
+            m_availableProgressTokens.push_back(t);
+        }
+        
+        void addBoxProgressToken(ProgressToken t) {
+            m_boxProgressTokens.push_back(t);
+        }
+
+        bool removeAvailableProgressToken(ProgressToken t) {
+            auto it = std::find(m_availableProgressTokens.begin(), m_availableProgressTokens.end(), t);
+            if (it != m_availableProgressTokens.end()) {
+                m_availableProgressTokens.erase(it);
+                return true;
+            }
+            return false;
+        }
+        
+        bool removeBoxProgressToken(ProgressToken t) {
+            auto it = std::find(m_boxProgressTokens.begin(), m_boxProgressTokens.end(), t);
+            if (it != m_boxProgressTokens.end()) {
+                m_boxProgressTokens.erase(it);
+                return true;
+            }
+            return false;
+        }
+
 
         // 从玩家已建卡牌中移除指定颜色的卡
         void destroyCard(Player* target, CardType color) {
-            auto it = std::find_if(target->builtCards.rbegin(), target->builtCards.rend(),
-                [color](Card* c){ return c->type == color; });
-
-            if (it != target->builtCards.rend()) {
-                Card* c = *it;
-                auto fwdIt = std::find(target->builtCards.begin(), target->builtCards.end(), c);
-                if (fwdIt != target->builtCards.end()) {
-                    target->builtCards.erase(fwdIt);
-                    discardPile.push_back(c);
-                }
+            Card* removed = target->removeCardByType(color);
+            if (removed) {
+                m_discardPile.push_back(removed);
             }
         }
     };

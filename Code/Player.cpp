@@ -11,7 +11,79 @@
 
 namespace SevenWondersDuel {
 
-    // 辅助：递归求解最小交易成本
+    // 构造函数
+    Player::Player(int pid, std::string pname) : m_id(pid), m_name(pname), m_coins(7) {
+        // 初始化资源 map
+        m_fixedResources[ResourceType::WOOD] = 0;
+        m_fixedResources[ResourceType::STONE] = 0;
+        m_fixedResources[ResourceType::CLAY] = 0;
+        m_fixedResources[ResourceType::PAPER] = 0;
+        m_fixedResources[ResourceType::GLASS] = 0;
+
+        // 初始化公开产量
+        m_publicProduction[ResourceType::WOOD] = 0;
+        m_publicProduction[ResourceType::STONE] = 0;
+        m_publicProduction[ResourceType::CLAY] = 0;
+        m_publicProduction[ResourceType::PAPER] = 0;
+        m_publicProduction[ResourceType::GLASS] = 0;
+
+        // 交易优惠初始化
+        m_tradingDiscounts[ResourceType::WOOD] = false;
+        m_tradingDiscounts[ResourceType::STONE] = false;
+        m_tradingDiscounts[ResourceType::CLAY] = false;
+        m_tradingDiscounts[ResourceType::PAPER] = false;
+        m_tradingDiscounts[ResourceType::GLASS] = false;
+    }
+
+    // --- 核心状态查询 ---
+
+    int Player::getCardCount(CardType type) const {
+        int count = 0;
+        for (const auto& card : m_builtCards) {
+            if (card->getType() == type) count++;
+        }
+        return count;
+    }
+
+    int Player::getScore(const Player& opponent) const {
+        int score = 0;
+
+        // 1. 卡牌分 + 效果分 (包含行会)
+        for (const auto& card : m_builtCards) {
+            score += card->getVictoryPoints(this, &opponent);
+        }
+
+        // 2. 奇迹分
+        for (const auto& wonder : m_builtWonders) {
+            score += wonder->getVictoryPoints(this, &opponent);
+        }
+
+        // 3. 军事分 (在 Board 中计算，此处不加)
+
+        // 4. 金币分 (3块钱1分)
+        score += m_coins / 3;
+
+        // 5. 发展标记分
+        for (auto token : m_progressTokens) {
+            if (token == ProgressToken::AGRICULTURE) score += 4;
+            if (token == ProgressToken::MATHEMATICS) score += 3 * m_progressTokens.size(); // 数学：每个标记3分
+            if (token == ProgressToken::PHILOSOPHY) score += 7;
+        }
+
+        return score;
+    }
+
+    int Player::getBlueCardScore(const Player& opponent) const {
+        int score = 0;
+        for (const auto& card : m_builtCards) {
+            if (card->getType() == CardType::CIVILIAN) {
+                score += card->getVictoryPoints(this, &opponent);
+            }
+        }
+        return score;
+    }
+
+    // --- 辅助：递归求解最小交易成本 ---
     void solveMinCost(std::map<ResourceType, int> needed,
                       size_t choiceIdx,
                       const std::vector<std::vector<ResourceType>>& choices,
@@ -56,21 +128,21 @@ namespace SevenWondersDuel {
 
     int Player::getTradingPrice(ResourceType type, const Player& opponent) const {
         // 如果有特定资源的优惠卡 (如 Stone Reserve)，价格固定为 1
-        if (tradingDiscounts.count(type) && tradingDiscounts.at(type)) return 1;
+        if (m_tradingDiscounts.count(type) && m_tradingDiscounts.at(type)) return 1;
 
         // 否则：2 + 对手该类资源产量的"公开值" (棕/灰卡)
+        // Accessing private member of another instance of same class is allowed in C++
         int opponentProduction = 0;
-        if (opponent.publicProduction.count(type)) {
-            opponentProduction = opponent.publicProduction.at(type);
+        if (opponent.m_publicProduction.count(type)) {
+            opponentProduction = opponent.m_publicProduction.at(type);
         }
         return 2 + opponentProduction;
     }
 
-    // [UPDATED] 实现 Masonry 和 Architecture 的减费逻辑
     std::pair<bool, int> Player::calculateCost(const ResourceCost& cost, const Player& opponent, CardType targetType) const {
         // 1. 基础金币检查 (如果只需要金币)
         if (cost.resources.empty()) {
-            if (coins < cost.coins) return { false, cost.coins };
+            if (m_coins < cost.coins) return { false, cost.coins };
             return { true, cost.coins };
         }
 
@@ -82,8 +154,8 @@ namespace SevenWondersDuel {
             ResourceType type = it->first;
             int needed = it->second;
 
-            auto myResIt = fixedResources.find(type);
-            int owned = (myResIt != fixedResources.end()) ? myResIt->second : 0;
+            auto myResIt = m_fixedResources.find(type);
+            int owned = (myResIt != m_fixedResources.end()) ? myResIt->second : 0;
 
             if (owned >= needed) {
                 it = deficit.erase(it);
@@ -95,9 +167,9 @@ namespace SevenWondersDuel {
 
         // --- [NEW] 科技标记减费逻辑 ---
         int discountCount = 0;
-        if (progressTokens.count(ProgressToken::MASONRY) && targetType == CardType::CIVILIAN) {
+        if (m_progressTokens.count(ProgressToken::MASONRY) && targetType == CardType::CIVILIAN) {
             discountCount = 2;
-        } else if (progressTokens.count(ProgressToken::ARCHITECTURE) && targetType == CardType::WONDER) {
+        } else if (m_progressTokens.count(ProgressToken::ARCHITECTURE) && targetType == CardType::WONDER) {
             discountCount = 2;
         }
 
@@ -133,20 +205,117 @@ namespace SevenWondersDuel {
 
         // 如果扣除固定产出和科技减免后没缺口了，且金币够
         if (deficit.empty()) {
-            if (coins < cost.coins) return { false, cost.coins };
+            if (m_coins < cost.coins) return { false, cost.coins };
             return { true, cost.coins };
         }
 
         // 4. 利用多选一资源填补剩余缺口 (寻找最小交易费)
         int minTradingCost = std::numeric_limits<int>::max();
 
-        solveMinCost(deficit, 0, choiceResources, opponent, *this, minTradingCost);
+        solveMinCost(deficit, 0, m_choiceResources, opponent, *this, minTradingCost);
 
         // 5. 汇总结果
         int totalRequired = cost.coins + minTradingCost;
-        bool canAfford = (coins >= totalRequired);
+        bool canAfford = (m_coins >= totalRequired);
 
         return { canAfford, totalRequired };
+    }
+
+    // --- 动作执行 (Mutators) ---
+
+    void Player::payCoins(int amount) {
+        m_coins = std::max(0, m_coins - amount);
+    }
+
+    void Player::gainCoins(int amount) {
+        m_coins += amount;
+    }
+
+    void Player::setTradingDiscount(ResourceType r, bool active) {
+        m_tradingDiscounts[r] = active;
+    }
+
+    void Player::addClaimedSciencePair(ScienceSymbol s) {
+        m_claimedSciencePairs.insert(s);
+    }
+
+    void Player::addResource(ResourceType type, int count, bool isTradable) {
+        m_fixedResources[type] += count;
+        if (isTradable) {
+            m_publicProduction[type] += count;
+        }
+    }
+
+    void Player::addProductionChoice(const std::vector<ResourceType>& choices) {
+        m_choiceResources.push_back(choices);
+    }
+
+    void Player::addScienceSymbol(ScienceSymbol s) {
+        if (s != ScienceSymbol::NONE) {
+            m_scienceSymbols[s]++;
+        }
+    }
+
+    void Player::addChainTag(const std::string& tag) {
+        if (!tag.empty()) m_ownedChainTags.insert(tag);
+    }
+
+    void Player::addProgressToken(ProgressToken token) {
+        m_progressTokens.insert(token);
+        // 立即生效的 buff 处理 (如 LAW)
+        if (token == ProgressToken::LAW) addScienceSymbol(ScienceSymbol::LAW);
+    }
+
+    void Player::constructCard(Card* card) {
+        m_builtCards.push_back(card);
+        addChainTag(card->getChainTag());
+    }
+
+    Card* Player::removeCardByType(CardType type) {
+        auto it = std::find_if(m_builtCards.rbegin(), m_builtCards.rend(),
+            [type](Card* c){ return c->getType() == type; });
+
+        if (it != m_builtCards.rend()) {
+            Card* c = *it;
+            // Convert reverse iterator to forward iterator for erase
+            // rbegin is last element, rend is before first.
+            // base() of reverse_iterator returns the element *after* the one it points to.
+            // So if it points to element X, base() points to X+1.
+            // To get X, we need (it + 1).base()
+            
+            auto fwdIt = (it + 1).base();
+            m_builtCards.erase(fwdIt);
+            return c;
+        }
+        return nullptr;
+    }
+
+    void Player::addUnbuiltWonder(Wonder* w) {
+        m_unbuiltWonders.push_back(w);
+    }
+
+    void Player::removeUnbuiltWonder(const std::string& wonderId) {
+        auto it = std::remove_if(m_unbuiltWonders.begin(), m_unbuiltWonders.end(),
+            [&](Wonder* w){ return w->getId() == wonderId; });
+        if (it != m_unbuiltWonders.end()) {
+            m_unbuiltWonders.erase(it, m_unbuiltWonders.end());
+        }
+    }
+
+    void Player::clearUnbuiltWonders() {
+        m_unbuiltWonders.clear();
+    }
+
+    void Player::constructWonder(std::string wonderId, Card* overlayCard) {
+        auto it = std::find_if(m_unbuiltWonders.begin(), m_unbuiltWonders.end(),
+            [&](Wonder* w){ return w->getId() == wonderId; });
+
+        if (it != m_unbuiltWonders.end()) {
+            Wonder* w = *it;
+            w->build(overlayCard);
+            m_builtWonders.push_back(w);
+            m_unbuiltWonders.erase(it);
+        }
     }
 
 }
