@@ -15,6 +15,9 @@ namespace SevenWondersDuel {
 
     class RulesEngine {
     public:
+        // Returns the symbol of a newly formed pair that hasn't been claimed yet, or ScienceSymbol::NONE
+        static ScienceSymbol getNewSciencePairSymbol(const Player& player);
+
         // Checks for Military and Science Supremacy
         static VictoryResult checkInstantVictory(const Player& p1, const Player& p2, const Board& board);
     };

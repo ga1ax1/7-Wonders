@@ -143,6 +143,24 @@ namespace SevenWondersDuel {
     //  主菜单渲染
     // ========================================================== 
 
+    std::string GameView::promptPlayerName(int playerIndex, const std::string& defaultName) {
+        clearScreen();
+        printLine('=', 80);
+        std::cout << "Enter name for Player " << playerIndex << " [Default: " << defaultName << "]: ";
+        
+        std::string input;
+        std::getline(std::cin, input);
+        
+        // Remove leading/trailing whitespace
+        auto start = input.find_first_not_of(" \t\n\r");
+        if (start == std::string::npos) return defaultName;
+        auto end = input.find_last_not_of(" \t\n\r");
+        input = input.substr(start, end - start + 1);
+
+        if (input.empty()) return defaultName;
+        return input;
+    }
+
     void GameView::renderMainMenu() {
         clearScreen();
         printLine('=', 80);

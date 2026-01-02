@@ -10,8 +10,7 @@
 #include <map>
 #include <string>
 #include <memory>
-
-namespace TinyJson { struct Value; }
+#include <nlohmann/json.hpp>
 
 namespace SevenWondersDuel {
 
@@ -220,7 +219,7 @@ namespace SevenWondersDuel {
 
     class EffectFactory {
     public:
-        static std::vector<std::shared_ptr<IEffect>> createEffects(const TinyJson::Value& vList, CardType sourceType, bool isFromCard);
+        static std::vector<std::shared_ptr<IEffect>> createEffects(const nlohmann::json& vList, CardType sourceType, bool isFromCard);
     };
 
 }

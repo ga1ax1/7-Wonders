@@ -112,7 +112,7 @@ namespace SevenWondersDuel {
         GameController();
         ~GameController();
 
-        void initializeGame(const std::string& jsonPath);
+        void initializeGame(const std::string& jsonPath, const std::string& p1Name, const std::string& p2Name);
         void startGame();
 
         GameState getState() const;
