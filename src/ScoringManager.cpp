@@ -33,10 +33,8 @@ namespace SevenWondersDuel {
 
     int ScoringManager::calculateBluePoints(const Player& player, const Player& opponent) {
         int score = 0;
-        for (const auto& card : player.getBuiltCards()) {
-            if (card->getType() == CardType::CIVILIAN) {
-                score += card->getVictoryPoints(&player, &opponent);
-            }
+        for (auto card : player.getCardsByType(CardType::CIVILIAN)) {
+            score += card->getVictoryPoints(&player, &opponent);
         }
         return score;
     }

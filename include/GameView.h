@@ -22,6 +22,9 @@ namespace SevenWondersDuel {
 		void clearScreen();
 		void renderMainMenu();
 
+        // 提示输入玩家姓名，defaultName 用于直接回车的情况
+        std::string promptPlayerName(int playerIndex, const std::string& defaultName);
+
 		void printMessage(const std::string& msg);
 
         // [Updated] 暴露渲染接口供使用，增加 ctx 和 lastError 参数

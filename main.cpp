@@ -34,9 +34,6 @@ int main() {
     GameController game;
     InputManager inputManager;
 
-    // 加载数据 (请确保 gamedata.json 存在于运行目录)
-    game.initializeGame("../data/gamedata.json");
-
     // 2. 游戏配置菜单
     view.renderMainMenu();
 
@@ -49,17 +46,29 @@ int main() {
     // IMPORTANT: Clear the buffer after reading int to prevent prompt skipping
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
+    std::string p1Name = "Player 1";
+    std::string p2Name = "Player 2";
+
     if (modeChoice == 1) {
         agent1 = std::make_unique<HumanAgent>();
         agent2 = std::make_unique<HumanAgent>();
+        p1Name = view.promptPlayerName(1, "Player 1");
+        p2Name = view.promptPlayerName(2, "Player 2");
     } else if (modeChoice == 3) {
         agent1 = std::make_unique<RandomAIAgent>();
         agent2 = std::make_unique<RandomAIAgent>();
+        p1Name = "AI Alpha";
+        p2Name = "AI Beta";
     } else {
         // Default: Human vs AI
         agent1 = std::make_unique<HumanAgent>();
         agent2 = std::make_unique<RandomAIAgent>();
+        p1Name = view.promptPlayerName(1, "Player 1");
+        p2Name = "AI Bot";
     }
+
+    // 加载数据 (请确保 gamedata.json 存在于运行目录)
+    game.initializeGame("../data/gamedata.json", p1Name, p2Name);
 
     // 3. 开始游戏
     game.startGame();

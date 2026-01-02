@@ -101,15 +101,6 @@ namespace SevenWondersDuel {
         }
     }
 
-    std::vector<const CardSlot*> CardPyramid::getAvailableCards() const {
-        std::vector<const CardSlot*> available;
-        for (const auto& slot : m_slots) {
-            if (!slot.isRemoved() && slot.getCoveredBy().empty()) {
-                available.push_back(&slot);
-            }
-        }
-        return available;
-    }
 
     Card* CardPyramid::removeCard(const std::string& cardId) {
         Card* removedCard = nullptr;

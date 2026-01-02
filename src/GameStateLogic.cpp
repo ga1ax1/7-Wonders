@@ -59,9 +59,12 @@ namespace SevenWondersDuel {
 
         // 2. Check Availability
         bool isAvailable = false;
-        auto availableSlots = model.getBoard()->getCardStructure().getAvailableCards();
-        for(auto slot : availableSlots) {
-            if(slot->getCardPtr() && slot->getCardPtr()->getId() == target->getId()) isAvailable = true;
+        const auto& pyramid = model.getBoard()->getCardStructure();
+        for(const auto& slot : pyramid) {
+            if(slot.getCardPtr() && slot.getCardPtr()->getId() == target->getId()) {
+                 isAvailable = true; 
+                 break; // Optimization: Found it, no need to continue
+            }
         }
         if (!isAvailable) { result.message = "Card is currently covered"; return result; }
 

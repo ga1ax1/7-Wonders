@@ -3,6 +3,20 @@
 
 namespace SevenWondersDuel {
 
+    ScienceSymbol RulesEngine::getNewSciencePairSymbol(const Player& player) {
+        for (auto const& [sym, count] : player.getScienceSymbols()) {
+            if (sym == ScienceSymbol::NONE) continue;
+
+            if (count >= Config::SCIENCE_PAIR_COUNT) {
+                const auto& claimed = player.getClaimedSciencePairs();
+                if (claimed.find(sym) == claimed.end()) {
+                    return sym;
+                }
+            }
+        }
+        return ScienceSymbol::NONE;
+    }
+
     VictoryResult RulesEngine::checkInstantVictory(const Player& p1, const Player& p2, const Board& board) {
         VictoryResult result;
 

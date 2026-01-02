@@ -10,6 +10,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <iterator>
 
 namespace SevenWondersDuel {
 
@@ -38,8 +39,64 @@ namespace SevenWondersDuel {
         const std::vector<CardSlot>& getSlots() const { return m_slots; }
         
         void init(int age, const std::vector<Card*>& deck);
-        std::vector<const CardSlot*> getAvailableCards() const;
+        // std::vector<const CardSlot*> getAvailableCards() const; // Removed in favor of Iterator
         Card* removeCard(const std::string& cardId);
+
+        // --- Iterator Implementation ---
+        class Iterator {
+        public:
+            using iterator_category = std::forward_iterator_tag;
+            using difference_type   = std::ptrdiff_t;
+            using value_type        = const CardSlot;
+            using pointer           = const CardSlot*;
+            using reference         = const CardSlot&;
+
+            Iterator(const std::vector<CardSlot>* slots, int index) 
+                : m_ptrSlots(slots), m_currentIndex(index) {
+                advanceToNextAvailable();
+            }
+
+            reference operator*() const { return (*m_ptrSlots)[m_currentIndex]; }
+            pointer operator->() const { return &(*m_ptrSlots)[m_currentIndex]; }
+
+            Iterator& operator++() {
+                m_currentIndex++;
+                advanceToNextAvailable();
+                return *this;
+            }
+
+            Iterator operator++(int) {
+                Iterator tmp = *this;
+                ++(*this);
+                return tmp;
+            }
+
+            friend bool operator==(const Iterator& a, const Iterator& b) {
+                return a.m_currentIndex == b.m_currentIndex && a.m_ptrSlots == b.m_ptrSlots;
+            }
+
+            friend bool operator!=(const Iterator& a, const Iterator& b) {
+                return !(a == b);
+            }
+
+        private:
+            const std::vector<CardSlot>* m_ptrSlots;
+            int m_currentIndex;
+
+            void advanceToNextAvailable() {
+                while (m_currentIndex < (int)m_ptrSlots->size()) {
+                    const CardSlot& slot = (*m_ptrSlots)[m_currentIndex];
+                    // If slot is NOT removed AND NOT covered, it is valid. Stop here.
+                    if (!slot.isRemoved() && slot.getCoveredBy().empty()) {
+                        break;
+                    }
+                    m_currentIndex++;
+                }
+            }
+        };
+
+        Iterator begin() const { return Iterator(&m_slots, 0); }
+        Iterator end() const { return Iterator(&m_slots, (int)m_slots.size()); }
 
     private:
         void addSlot(int row, int count, bool faceUp, const std::vector<Card*>& deck, int& deckIdx);

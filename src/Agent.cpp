@@ -171,10 +171,11 @@ namespace SevenWondersDuel {
             const Player* me = model.getCurrentPlayer();
 
             // 获取所有可用的金字塔卡牌
-            std::vector<const CardSlot*> availableSlots = model.getBoard()->getCardStructure().getAvailableCards();
+            const CardPyramid& pyramid = model.getBoard()->getCardStructure();
             std::vector<const CardSlot*> validSlots;
-            for(auto s : availableSlots) {
-                if(s->getCardPtr() && s->isFaceUp()) validSlots.push_back(s);
+
+            for(const auto& slot : pyramid) {
+                if(slot.getCardPtr() && slot.isFaceUp()) validSlots.push_back(&slot);
             }
 
             if (validSlots.empty()) return action;

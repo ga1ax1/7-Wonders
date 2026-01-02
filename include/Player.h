@@ -13,6 +13,7 @@
 #include <set>
 #include <string>
 #include <algorithm>
+#include <optional>
 
 namespace SevenWondersDuel {
 
@@ -112,6 +113,66 @@ namespace SevenWondersDuel {
         
         // 建造奇迹
         void constructWonder(std::string wonderId, Card* overlayCard);
+
+        // --- Iterator Implementation ---
+        class BuiltCardIterator {
+        public:
+            using iterator_category = std::forward_iterator_tag;
+            using difference_type   = std::ptrdiff_t;
+            using value_type        = Card*;
+            using pointer           = Card**;
+            using reference         = Card*&;
+
+            BuiltCardIterator(const std::vector<Card*>* cards, int index, std::optional<CardType> filter)
+                : m_cards(cards), m_index(index), m_filter(filter) {
+                advanceToNextValid();
+            }
+
+            Card* operator*() const { return (*m_cards)[m_index]; }
+            
+            BuiltCardIterator& operator++() {
+                m_index++;
+                advanceToNextValid();
+                return *this;
+            }
+
+            BuiltCardIterator operator++(int) {
+                BuiltCardIterator tmp = *this;
+                ++(*this);
+                return tmp;
+            }
+
+            friend bool operator==(const BuiltCardIterator& a, const BuiltCardIterator& b) {
+                return a.m_index == b.m_index && a.m_cards == b.m_cards;
+            }
+
+            friend bool operator!=(const BuiltCardIterator& a, const BuiltCardIterator& b) {
+                return !(a == b);
+            }
+
+        private:
+            const std::vector<Card*>* m_cards;
+            int m_index;
+            std::optional<CardType> m_filter;
+
+            void advanceToNextValid() {
+                while (m_index < (int)m_cards->size()) {
+                    if (!m_filter.has_value()) break; // No filter, current is valid
+                    if ((*m_cards)[m_index]->getType() == m_filter.value()) break; // Match
+                    m_index++;
+                }
+            }
+        };
+
+        struct CardRange {
+            BuiltCardIterator m_begin;
+            BuiltCardIterator m_end;
+            BuiltCardIterator begin() const { return m_begin; }
+            BuiltCardIterator end() const { return m_end; }
+        };
+
+        CardRange getCardsByType(CardType type) const;
+        CardRange getAllCards() const;
     };
 }
 

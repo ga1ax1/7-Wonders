@@ -1,9 +1,9 @@
 #include "GameController.h"
-#include "DataLoader.h"
 #include "RulesEngine.h"
 #include "ScoringManager.h"
 #include "GameStateLogic.h"
 #include "GameCommands.h"
+#include "GameFactory.h"
 #include <algorithm>
 #include <iostream>
 #include <random>
@@ -53,23 +53,18 @@ namespace SevenWondersDuel {
     }
 
     void GameController::loadData(const std::string& path) {
-        std::vector<Card> cards;
-        std::vector<Wonder> wonders;
-
-        bool success = DataLoader::loadFromFile(path, cards, wonders);
-        if (!success) {
-            std::cerr << "CRITICAL ERROR: Failed to load game data from " << path << std::endl;
-            exit(1);
-        }
-        m_model->populateData(std::move(cards), std::move(wonders));
+        // Deprecated: Logic moved to GameFactory
     }
 
-    void GameController::initializeGame(const std::string& jsonPath) {
-        loadData(jsonPath);
+    void GameController::initializeGame(const std::string& jsonPath, const std::string& p1Name, const std::string& p2Name) {
+        // Use Factory to load data
+        BaseGameFactory factory(jsonPath);
+        
+        m_model->populateData(factory.createCards(), factory.createWonders());
 
         m_model->clearPlayers();
-        m_model->addPlayer(std::make_unique<Player>(0, "Player 1"));
-        m_model->addPlayer(std::make_unique<Player>(1, "Player 2"));
+        m_model->addPlayer(std::make_unique<Player>(0, p1Name));
+        m_model->addPlayer(std::make_unique<Player>(1, p2Name));
 
         m_model->setCurrentAge(0);
         m_model->setCurrentPlayerIndex(0);
@@ -77,25 +72,9 @@ namespace SevenWondersDuel {
         m_model->setVictoryType(VictoryType::NONE);
         m_model->clearLog();
 
-        std::vector<ProgressToken> allTokens = {
-            ProgressToken::AGRICULTURE, ProgressToken::URBANISM,
-            ProgressToken::STRATEGY, ProgressToken::THEOLOGY,
-            ProgressToken::ECONOMY, ProgressToken::MASONRY,
-            ProgressToken::ARCHITECTURE, ProgressToken::LAW,
-            ProgressToken::MATHEMATICS, ProgressToken::PHILOSOPHY
-        };
-
-        std::shuffle(allTokens.begin(), allTokens.end(), m_rng);
-
-        m_model->getBoardMut()->setAvailableProgressTokens({});
-        for(int i=0; i<5; ++i) {
-            m_model->getBoardMut()->addAvailableProgressToken(allTokens[i]);
-        }
-
-        m_model->getBoardMut()->setBoxProgressTokens({});
-        for(size_t i=5; i<allTokens.size(); ++i) {
-            m_model->getBoardMut()->addBoxProgressToken(allTokens[i]);
-        }
+        // Use Factory to get tokens
+        m_model->getBoardMut()->setAvailableProgressTokens(factory.createAvailableTokens());
+        m_model->getBoardMut()->setBoxProgressTokens(factory.createBoxTokens());
 
         m_model->addLog("[System] Game Initialized. Progress Tokens shuffled.");
     }
@@ -266,17 +245,12 @@ namespace SevenWondersDuel {
     }
 
     bool GameController::checkForNewSciencePairs(Player* p) {
-        for (auto const& [sym, count] : p->getScienceSymbols()) {
-            if (sym == ScienceSymbol::NONE) continue;
-
-            if (count >= Config::SCIENCE_PAIR_COUNT) {
-                if (p->getClaimedSciencePairs().find(sym) == p->getClaimedSciencePairs().end()) {
-                    p->addClaimedSciencePair(sym);
-                    setState(GameState::WAITING_FOR_TOKEN_SELECTION_PAIR);
-                    m_model->addLog(p->getName() + " collected a Science Pair! Choose a Progress Token.");
-                    return true;
-                }
-            }
+        ScienceSymbol sym = RulesEngine::getNewSciencePairSymbol(*p);
+        if (sym != ScienceSymbol::NONE) {
+            p->addClaimedSciencePair(sym);
+            setState(GameState::WAITING_FOR_TOKEN_SELECTION_PAIR);
+            m_model->addLog(p->getName() + " collected a Science Pair! Choose a Progress Token.");
+            return true;
         }
         return false;
     }

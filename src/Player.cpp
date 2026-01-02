@@ -39,9 +39,7 @@ namespace SevenWondersDuel {
 
     int Player::getCardCount(CardType type) const {
         int count = 0;
-        for (const auto& card : m_builtCards) {
-            if (card->getType() == type) count++;
-        }
+        for (auto c : getCardsByType(type)) { count++; }
         return count;
     }
 
@@ -278,6 +276,20 @@ namespace SevenWondersDuel {
             m_builtWonders.push_back(w);
             m_unbuiltWonders.erase(it);
         }
+    }
+
+    Player::CardRange Player::getCardsByType(CardType type) const {
+        return {
+            BuiltCardIterator(&m_builtCards, 0, type),
+            BuiltCardIterator(&m_builtCards, (int)m_builtCards.size(), type)
+        };
+    }
+
+    Player::CardRange Player::getAllCards() const {
+        return {
+            BuiltCardIterator(&m_builtCards, 0, std::nullopt),
+            BuiltCardIterator(&m_builtCards, (int)m_builtCards.size(), std::nullopt)
+        };
     }
 
 }

@@ -4,14 +4,12 @@
 
 #include "EffectSystem.h"
 #include "Player.h"
-#include "TinyJson.h"
+#include <nlohmann/json.hpp>
 #include <algorithm>
 #include <sstream>
 
 namespace SevenWondersDuel {
     
-    using namespace TinyJson;
-
     // --- 1. ProductionEffect ---
     void ProductionEffect::apply(Player* self, Player* opponent, ILogger* logger, IGameActions* actions) {
         if (isChoice) {
@@ -257,24 +255,24 @@ namespace SevenWondersDuel {
     //  EffectFactory Implementation
     // ==========================================================
 
-    std::vector<std::shared_ptr<IEffect>> EffectFactory::createEffects(const Value& vList, CardType sourceType, bool isFromCard) {
+    std::vector<std::shared_ptr<IEffect>> EffectFactory::createEffects(const nlohmann::json& vList, CardType sourceType, bool isFromCard) {
         std::vector<std::shared_ptr<IEffect>> effects;
-        const auto& list = vList.asList();
 
-        for (const auto& effVal : list) {
-            std::string type = effVal["type"].asString();
+        for (const auto& effVal : vList) {
+            std::string type = effVal["type"].get<std::string>();
 
             if (type == "PRODUCTION" || type == "PRODUCTION_CHOICE") {
                 std::map<ResourceType, int> res;
-                const auto& resObj = effVal["resources"].asObject();
-
-                if (effVal["resources"].isList()) {
-                    for(const auto& item : effVal["resources"].asList()) {
-                        res[strToResource(item.asString())] = 1;
-                    }
-                } else {
-                     for (const auto& [key, val] : resObj) {
-                        res[strToResource(key)] = val.asInt();
+                
+                if (effVal.contains("resources")) {
+                    if (effVal["resources"].is_array()) {
+                        for(const auto& item : effVal["resources"]) {
+                            res[strToResource(item.get<std::string>())] = 1;
+                        }
+                    } else if (effVal["resources"].is_object()) {
+                         for (const auto& [key, val] : effVal["resources"].items()) {
+                            res[strToResource(key)] = val.get<int>();
+                        }
                     }
                 }
 
@@ -291,29 +289,29 @@ namespace SevenWondersDuel {
             }
             else if (type == "MILITARY") {
                 // 传入 isFromCard 标记
-                effects.push_back(std::make_shared<MilitaryEffect>(effVal["shields"].asInt(), isFromCard));
+                effects.push_back(std::make_shared<MilitaryEffect>(effVal["shields"].get<int>(), isFromCard));
             }
             else if (type == "VICTORY_POINTS") {
-                effects.push_back(std::make_shared<VictoryPointEffect>(effVal["amount"].asInt()));
+                effects.push_back(std::make_shared<VictoryPointEffect>(effVal["amount"].get<int>()));
             }
             else if (type == "SCIENCE") {
-                effects.push_back(std::make_shared<ScienceEffect>(strToScienceSymbol(effVal["symbol"].asString())));
+                effects.push_back(std::make_shared<ScienceEffect>(strToScienceSymbol(effVal["symbol"].get<std::string>())));
             }
             else if (type == "COINS") {
-                effects.push_back(std::make_shared<CoinEffect>(effVal["amount"].asInt()));
+                effects.push_back(std::make_shared<CoinEffect>(effVal["amount"].get<int>()));
             }
             else if (type == "TRADE_DISCOUNT") {
-                effects.push_back(std::make_shared<TradeDiscountEffect>(strToResource(effVal["resource"].asString())));
+                effects.push_back(std::make_shared<TradeDiscountEffect>(strToResource(effVal["resource"].get<std::string>())));
             }
             else if (type == "COINS_PER_TYPE") {
-                CardType t = strToCardType(effVal["target_type"].asString());
-                if (effVal["target_type"].asString() == "WONDER") t = CardType::WONDER;
+                CardType t = strToCardType(effVal["target_type"].get<std::string>());
+                if (effVal["target_type"].get<std::string>() == "WONDER") t = CardType::WONDER;
 
                 bool countWonder = (t == CardType::WONDER);
-                effects.push_back(std::make_shared<CoinsPerTypeEffect>(t, effVal["amount"].asInt(), countWonder));
+                effects.push_back(std::make_shared<CoinsPerTypeEffect>(t, effVal["amount"].get<int>(), countWonder));
             }
             else if (type == "DESTROY_CARD") {
-                effects.push_back(std::make_shared<DestroyCardEffect>(strToCardType(effVal["target_color"].asString())));
+                effects.push_back(std::make_shared<DestroyCardEffect>(strToCardType(effVal["target_color"].get<std::string>())));
             }
             else if (type == "EXTRA_TURN") {
                 effects.push_back(std::make_shared<ExtraTurnEffect>());
@@ -325,10 +323,10 @@ namespace SevenWondersDuel {
                 effects.push_back(std::make_shared<ProgressTokenSelectEffect>());
             }
             else if (type == "OPPONENT_LOSE_COINS") {
-                effects.push_back(std::make_shared<OpponentLoseCoinsEffect>(effVal["amount"].asInt()));
+                effects.push_back(std::make_shared<OpponentLoseCoinsEffect>(effVal["amount"].get<int>()));
             }
             else if (type == "GUILD") {
-                std::string criteriaStr = effVal["criteria"].asString();
+                std::string criteriaStr = effVal["criteria"].get<std::string>();
                 GuildCriteria c;
                 if(criteriaStr == "YELLOW_CARDS") c = GuildCriteria::YELLOW_CARDS;
                 else if(criteriaStr == "BROWN_GREY_CARDS") c = GuildCriteria::BROWN_GREY_CARDS;
